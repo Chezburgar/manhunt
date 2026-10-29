@@ -19,7 +19,7 @@
 html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
   font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px}
 button{user-select:none}
-#map{position:fixed;inset:0;z-index:0}
+#map{position:fixed;top:0;left:0;right:0;bottom:0;z-index:0}
 .hidden{display:none!important}
 .screen{position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;background:var(--bg);overflow:auto;
   padding:calc(env(safe-area-inset-top) + 24px) 20px calc(env(safe-area-inset-bottom) + 24px);
@@ -104,11 +104,17 @@ input:focus{outline:none;border-color:var(--acc)}
 .mk{width:27px;height:27px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   font-size:13px;font-weight:900;color:#0a0e13;border:2px solid rgba(255,255,255,.9);box-shadow:0 1px 5px rgba(0,0,0,.5)}
 .mk.ping{border-radius:9px}
-#modal-scan,#modal-confirm{position:fixed;top:0;left:0;right:0;bottom:0;z-index:80;background:rgba(4,7,10,.95);
+#modal-confirm,#modal-tag{position:fixed;top:0;left:0;right:0;bottom:0;z-index:80;background:rgba(4,7,10,.95);
   display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;padding:20px}
-#scan-video{width:min(92vw,480px);border-radius:18px;background:#000}
-.scanhint{color:var(--amb);font-weight:800}
-#scan-close{position:absolute;top:calc(env(safe-area-inset-top) + 14px);right:14px}
+/* fullscreen boundary drawing overlay */
+#screen-draw{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;pointer-events:none;
+  display:flex;flex-direction:column;justify-content:space-between}
+.draw-top{pointer-events:auto;display:flex;gap:8px;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 10px 10px}
+.draw-top .btn{min-height:44px;min-width:48px;padding:8px 12px}
+.draw-title{flex:1;text-align:center;font-weight:800;font-size:14px;background:rgba(10,14,19,.88);
+  border:1px solid var(--line);border-radius:12px;padding:11px 8px}
+.draw-bottom{pointer-events:auto;margin-top:auto;background:rgba(10,14,19,.95);border-top:1px solid var(--line);
+  border-radius:18px 18px 0 0;padding:12px 14px calc(env(safe-area-inset-bottom) + 14px)}
 label{font-size:14px}
 input[type=number]{margin:0}
 </style>
@@ -138,7 +144,6 @@ input[type=number]{margin:0}
       <label class="flabel" for="inp-code">Game code</label>
       <input id="inp-code" placeholder="Enter code" autocomplete="off" autocapitalize="characters"/>
       <button class="btn primary big" data-act="home-join">Join Game</button>
-      <button class="btn" data-act="home-scan">📷 Scan QR instead</button>
     </div>
     <button class="btn ghostbtn" data-act="home-test">🧪 Test Mode — try every feature solo</button>
     <p id="backend-warn" class="warn hidden"></p>
@@ -195,7 +200,7 @@ input[type=number]{margin:0}
     <span class="flabel">SHARE THIS CODE / QR</span>
     <div class="big-code" id="setup-code"></div>
     <div class="qrbox"><canvas id="qr-join"></canvas></div>
-    <p class="muted">Players scan this or type the code</p>
+    <p class="muted">Scan with a phone camera — opens the site with the code filled in</p>
   </div>
   <div class="card"><ul id="setup-players" class="plist"></ul></div>
   <div class="sectitle">Spawn</div>
@@ -209,13 +214,7 @@ input[type=number]{margin:0}
   <div class="sectitle">Boundary — draw it</div>
   <div class="card">
     <div id="setup-bound-val" class="muted">not drawn</div>
-    <div id="draw-status" class="muted" style="margin:6px 0">Tap ✏️ Draw on map, then tap points on the map to sketch the boundary (min 3 points).</div>
-    <div class="row wrap" style="margin-top:8px">
-      <button class="btn" data-act="host-draw-bound">✏️ Draw on map</button>
-      <button class="btn ghostbtn" data-act="host-draw-undo">↩️ Undo</button>
-      <button class="btn ghostbtn" data-act="host-draw-clear">🗑 Clear</button>
-    </div>
-    <button class="btn primary" id="host-draw-save" data-act="host-draw-save" disabled style="margin-top:8px">✅ Save boundary</button>
+    <button class="btn" data-act="host-draw-bound" style="margin-top:8px">✏️ Draw boundary on map</button>
   </div>
   <div class="sectitle">Time limit</div>
   <div class="card row wrap">
@@ -245,12 +244,18 @@ input[type=number]{margin:0}
   <button class="tabbtn" data-act="tab" data-tab="role"><span class="ti">🎮</span>GAME</button>
 </nav>
 
-<!-- SCAN MODAL -->
-<div id="modal-scan" class="modal hidden">
-  <button class="btn ghostbtn" id="scan-close" data-act="scan-close">✕</button>
-  <video id="scan-video" playsinline muted></video>
-  <canvas id="scan-canvas" class="hidden"></canvas>
-  <div class="scanhint" id="scan-hint">Point the camera at a QR code</div>
+<!-- FULLSCREEN BOUNDARY DRAWING -->
+<div id="screen-draw" class="hidden">
+  <div class="draw-top">
+    <button class="btn ghostbtn" data-act="draw-cancel">✕</button>
+    <div class="draw-title" id="draw-title">Draw boundary</div>
+    <button class="btn" data-act="draw-undo">↩️</button>
+    <button class="btn" data-act="draw-clear">🗑</button>
+  </div>
+  <div class="draw-bottom">
+    <div class="muted center" id="draw-count" style="margin-bottom:8px">0 points — tap the map to add (min 3)</div>
+    <button class="btn primary big" id="draw-save" data-act="draw-save" disabled>✅ Save boundary</button>
+  </div>
 </div>
 
 <!-- CONFIRM MODAL -->
@@ -262,15 +267,33 @@ input[type=number]{margin:0}
   </div>
 </div>
 
+<!-- TAG MODAL (hunter) -->
+<div id="modal-tag" class="modal hidden">
+  <div class="card" style="width:min(92vw,420px)">
+    <h3>🎯 Tag a runner</h3>
+    <div id="tag-list"></div>
+    <div id="tag-entry" class="hidden">
+      <p>Ask <b id="tag-name"></b> for the code on their screen:</p>
+      <input id="tag-code" maxlength="4" autocomplete="off" autocapitalize="characters"
+        placeholder="ABCD" style="text-transform:uppercase;font-size:26px;text-align:center;letter-spacing:10px;font-weight:900"/>
+      <div class="row wrap">
+        <button class="btn danger" data-act="tag-confirm">Tag them</button>
+        <button class="btn ghostbtn" data-act="tag-back">Back</button>
+        <button class="btn ghostbtn" data-act="tag-close">Cancel</button>
+      </div>
+    </div>
+    <button class="btn ghostbtn" data-act="tag-close" style="margin-top:8px">Close</button>
+  </div>
+</div>
+
 <div id="toast" class="hidden"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-/* ================= BETHESDA MANHUNT v3 =================
+/* ================= BETHESDA MANHUNT v4 =================
    ↓↓ YOUR DATABASE (pre-configured) ↓↓ */
 const CFG = { databaseURL: "https://manhunt-e51a8-default-rtdb.firebaseio.com" };
 const CFG_OK = !!CFG.databaseURL;
@@ -281,10 +304,11 @@ const PING_MS = 60000;
 const OUTSIDE_LIMIT_MS = 60000;
 const BOUNDARY_EVENT_MS = 300000;
 const SPAWN_ARRIVE_M = 25;
+const TAG_WINDOW_MS = 30000;      // rotating tag-code window
 const TEST_CENTER = { lat: 38.9847, lng: -77.0947 };
 const $ = id => document.getElementById(id);
 
-/* ------- crash reporter: surfaces any error on screen so blanks are diagnosable ------- */
+/* ------- crash reporter ------- */
 function showFatal(msg){
   try{
     let el=document.getElementById("fatal");
@@ -302,12 +326,11 @@ window.addEventListener("unhandledrejection",e=>showFatal((e.reason&&e.reason.me
 const S = { mode:null, b:null, code:null, uid:null, name:"", role:"pending", status:null,
   meta:null, players:{}, live:{}, pings:{}, events:{}, photos:{}, result:null, resultShown:false,
   chatTab:"global", lastFix:null, outsideSince:0, lastLiveWrite:0, lastPingWrite:0,
-  tapMode:null, draw:null, photoPin:null, pending:null,
+  tapMode:null, draw:null, photoPin:null, pending:null, tagPid:null,
   simOutside:false, simT:0, bots:null, unsub:[], chatUnsub:null, lastMetaStatus:null };
 let MAP=null, myMarker=null, spawnMk=null, boundLayer=null, boundSig="", evPreview=null, photoMk=null;
 const dynMarkers={}; const outSince={};
 let tickI=null, pingI=null, botI=null, simI=null, watchId=null, wakeLock=null;
-let scanStream=null, scanRaf=null;
 
 /* ------- utils ------- */
 function distM(a,b){ const R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lng-a.lng)*Math.PI/180;
@@ -328,7 +351,17 @@ function clearSession(){ try{ localStorage.removeItem("bmh_session"); }catch(e){
 function fullTrackActive(){ const ft=S.events&&S.events.fullTrack; return !!(ft && Date.now()<ft.until); }
 function inGame(){ return S.meta && S.meta.status==="running"; }
 
-/* ------- polygon math (drawn boundaries) ------- */
+/* ------- rotating tag codes (replaces QR scanning) ------- */
+function tagWindow(){ return Math.floor(Date.now()/TAG_WINDOW_MS); }
+function calcCode(secret,pid,w){
+  const s=String(secret)+"|"+pid+"|"+w; let h=5381;
+  for(let i=0;i<s.length;i++){ h=(((h<<5)+h)+s.charCodeAt(i))&0x7fffffff; }
+  const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  return ""+A[h&31]+A[(h>>5)&31]+A[(h>>10)&31]+A[(h>>15)&31];
+}
+function tagCodeFor(pid){ return calcCode((S.meta&&S.meta.secret)||S.code,pid,tagWindow()); }
+
+/* ------- polygon math ------- */
 function pointInPoly(pt,poly){
   if(!poly||poly.length<3) return true;
   let inside=false;
@@ -344,7 +377,6 @@ function insideBounds(pt,b){
   if(b.type==="circle") return distM(pt,{lat:b.lat,lng:b.lng})<=b.radius;
   return pointInPoly(pt,b.points);
 }
-/* Current boundary: an active boundary-change event wins (with grace), else meta */
 function boundaryFor(){
   const ev=S.events&&S.events.boundaryChange;
   if(ev&&!ev.closed&&Date.now()<ev.deadline)
@@ -357,7 +389,7 @@ function boundaryFor(){
   return null;
 }
 
-/* ------- backends: Firebase (live) or Local (test mode) ------- */
+/* ------- backends ------- */
 class FBBackend{
   constructor(){ if(!firebase.apps.length) firebase.initializeApp(CFG); this.db=firebase.database(); this.uid=null; }
   init(){
@@ -481,14 +513,28 @@ function onMapClick(e){
   if(S.tapMode==="photoPin"){ S.photoPin=ll; const v=$("photo-pin-val"); if(v)v.textContent="pinned ✓"; S.tapMode=null; toast("Photo place pinned"); }
 }
 
-/* ------- boundary drawing (host) ------- */
-function startDraw(kind){
+/* ------- fullscreen boundary drawing ------- */
+function openDraw(kind){
   stopDraw();
-  S.draw={kind,points:[],preview:null,dots:[]};
-  toast(kind==="setup"
-    ?"Draw mode: tap the map to add boundary points"
-    :"Draw mode: tap the map for the NEW boundary");
+  S.draw={kind,points:[],preview:null,dots:[],from:kind==="setup"?"setup":"role"};
+  if(kind==="setup") $("panel-setup").classList.add("hidden");
+  else $("panel-role").classList.add("hidden");
+  $("draw-title").textContent = kind==="setup" ? "✏️ Draw the boundary" : "✏️ Draw the NEW boundary";
+  $("draw-save").textContent  = kind==="setup" ? "✅ Save boundary" : "📢 Broadcast — 5 min grace";
+  $("topbar").classList.add("hidden");
+  $("banner").classList.add("hidden");
+  $("screen-draw").classList.remove("hidden");
   updateDrawUI();
+  setTimeout(()=>{ if(MAP) MAP.invalidateSize(); },120);
+  toast("Tap the map to place points — pan & zoom freely");
+}
+function closeDraw(reopen){
+  $("screen-draw").classList.add("hidden");
+  const from=S.draw?S.draw.from:"setup";
+  stopDraw();
+  if(S.code) $("topbar").classList.remove("hidden");
+  if(reopen){ if(from==="setup") $("panel-setup").classList.remove("hidden"); else openTab("role"); }
+  renderBanner();
 }
 function stopDraw(){
   const d=S.draw; if(!d) return;
@@ -505,20 +551,12 @@ function redrawDrawPreview(){
   if(d.points.length>=3)
     d.preview=L.polygon(d.points.map(p=>[p.lat,p.lng]),{color:"#fbbf24",weight:2,dashArray:"6 6",fillOpacity:.08}).addTo(MAP);
 }
-function undoDrawPoint(){ const d=S.draw; if(!d||!d.points.length) return; d.points.pop(); redrawDrawPreview(); updateDrawUI(); }
-function clearDrawPoints(){ const d=S.draw; if(!d) return; d.points=[]; redrawDrawPreview(); updateDrawUI(); }
 function updateDrawUI(){
   const d=S.draw;
-  const stS=$("draw-status"), sv=$("host-draw-save");
-  if(stS) stS.textContent = (d&&d.kind==="setup")
-    ? (d.points.length+" point(s) — tap the map to add, then Save. (min 3)")
-    : "Tap ✏️ Draw on map, then tap points on the map to sketch the boundary (min 3 points).";
-  if(sv) sv.disabled = !(d&&d.kind==="setup"&&d.points.length>=3);
-  const stE=$("ev-draw-status"), bb=$("ev-bound-broadcast");
-  if(stE) stE.textContent = (d&&d.kind==="event")
-    ? (d.points.length+" point(s) — tap the map to add. (min 3)")
-    : "Tap ✏️ Draw to sketch the new boundary on the map.";
-  if(bb) bb.disabled = !(d&&d.kind==="event"&&d.points.length>=3);
+  const cnt=$("draw-count");
+  if(cnt) cnt.textContent=(d?d.points.length:0)+" points — tap the map to add (min 3)";
+  const sv=$("draw-save");
+  if(sv) sv.disabled=!(d&&d.points.length>=3);
 }
 
 /* ------- geolocation ------- */
@@ -568,6 +606,13 @@ function tick(){
   if(S.role==="host") hostTick(now);
   updateLiveBits(now);
   if(S.role==="hunter") renderPingList();
+  /* rotating tag code display for runners */
+  const tc=$("my-tagcode");
+  if(tc&&S.meta&&S.role==="runner"&&S.status==="active"){
+    tc.textContent=tagCodeFor(S.uid);
+    const nx=$("tag-next");
+    if(nx) nx.textContent="new code in "+Math.ceil(TAG_WINDOW_MS/1000-((Date.now()/1000)%(TAG_WINDOW_MS/1000)))+"s";
+  }
 }
 function boundarySelfTick(now){
   const el=$("tb-bound"); if(!el) return;
@@ -592,7 +637,7 @@ function hostTick(now){
   if(!S.meta||S.meta.status!=="running") return;
   const ev=S.events&&S.events.boundaryChange;
   const evActive=!!(ev&&!ev.closed&&now<ev.deadline);
-  const mb=evActive?null:boundaryFor(); /* old boundary is suspended during a boundary-change grace */
+  const mb=evActive?null:boundaryFor();
   if(mb){
     for(const id in S.players){ const p=S.players[id];
       if(p.role!=="runner"||p.status!=="active") continue;
@@ -699,7 +744,7 @@ async function doHost(name){
   for(let i=0;i<6;i++){ const c=randCode(5); const ex=await b.get("games/"+c+"/meta"); if(!ex){code=c;break;} }
   if(!code){ toast("Could not create a game code"); return; }
   S.mode="live"; S.b=b; S.uid=b.uid; S.code=code; S.name=name; S.role="host"; S.status="admin";
-  await b.set("games/"+code+"/meta",{hostId:S.uid,hostName:name,status:"lobby",createdAt:Date.now(),timeLimitMin:60});
+  await b.set("games/"+code+"/meta",{hostId:S.uid,hostName:name,status:"lobby",createdAt:Date.now(),timeLimitMin:60,secret:randCode(8)});
   await b.set("games/"+code+"/players/"+S.uid,{name,role:"host",status:"admin",agreed:true,joinedAt:Date.now()});
   saveSession(); subscribeAll(); enterLobbyHost();
 }
@@ -726,8 +771,10 @@ function enterLobbyHost(){
   $("setup-code").textContent=S.code;
   $("panel-setup").classList.remove("hidden");
   startGeo(); renderSetupIfHost(); updateDrawUI();
-  if(window.QRCode&&$("qr-join"))
-    QRCode.toCanvas($("qr-join"),JSON.stringify({t:"bmh",c:S.code}),{width:190,margin:1}).catch(()=>{});
+  if(window.QRCode&&$("qr-join")){
+    const url=location.origin+location.pathname+"?join="+S.code;
+    QRCode.toCanvas($("qr-join"),url,{width:190,margin:1}).catch(()=>{});
+  }
 }
 function renderSetupIfHost(){
   if(S.role!=="host"||!S.meta||S.meta.status!=="lobby") return;
@@ -863,9 +910,6 @@ function renderRolePanel(force){
   else if(S.role==="runner") html=runnerPanel();
   else html='<div class="card"><p>Waiting for the host…</p></div>';
   $("role-content").innerHTML=html;
-  const c=$("qr-tag");
-  if(c&&window.QRCode&&S.role==="runner"&&S.status==="active")
-    QRCode.toCanvas(c,JSON.stringify({t:"bmhtag",c:S.code,p:S.uid}),{width:190,margin:1}).catch(()=>{});
   renderPingList(); renderPlayersList(); updateDrawUI();
 }
 function testControls(){
@@ -894,9 +938,11 @@ function runnerPanel(){
         :"<p>Your photo: <b>"+st+"</b>"+(st==="approved"?" ✅":st==="pending"?" — waiting for host review ⏳":"")+"</p>")+"</div>";
   }
   return '<div class="card center"><span class="rolebadge runner">🏃 RUNNER</span>'+
-    '<p>Stay hidden. If a hunter scans your QR, you become a ghost.</p></div>'+
-    '<div class="card center"><b>Your tag QR</b><div class="qrbox"><canvas id="qr-tag"></canvas></div>'+
-    '<p class="muted">Hunters scan this when they tag you — everyone is told.</p></div>'+
+    '<p>Stay hidden. If a hunter catches you, show them this code.</p></div>'+
+    '<div class="card center"><b>YOUR TAG CODE</b>'+
+    '<div id="my-tagcode" style="font-size:46px;font-weight:900;letter-spacing:12px;color:var(--amb);font-family:monospace;margin:6px 0">----</div>'+
+    '<div class="muted" id="tag-next"></div>'+
+    '<p class="muted">Rotates every 30s — a hunter must read it off your screen to tag you.</p></div>'+
     photoHtml+testControls();
 }
 function hunterPanel(){
@@ -904,7 +950,8 @@ function hunterPanel(){
   return '<div class="card center"><span class="rolebadge hunter">🔴 HUNTER</span>'+
     "<p>Runners ping their location once a minute"+(ft?"":" — watch for orange last-seen markers.")+"</p>"+
     (ft?'<p class="warnbox">🎯 FULL TRACKING active — <b data-live="ft-until">'+fmtMMSS((S.events.fullTrack.until-Date.now()))+"</b></p>":"")+
-    '<button class="btn primary big" data-act="scan-open">📷 Scan Runner QR to Tag</button></div>'+
+    '<button class="btn primary big" data-act="tag-open">🎯 Tag a runner</button>'+
+    '<p class="muted">Catch them, then enter the 4-letter code on their screen.</p></div>'+
     '<div class="card"><b>Runner pings</b><ul id="ping-list" class="plist"></ul></div>'+testControls();
 }
 function ghostPanel(){
@@ -934,11 +981,8 @@ function hostPanel(){
     "<p>You can always see everyone. Broadcast events below.</p></div>"+
     '<div class="card"><b>⚠️ Boundary change</b>'+
     (evA?'<p class="warnbox">Active! Runners have <b data-live="ev-deadline">'+fmtMMSS(e.boundaryChange.deadline-Date.now())+"</b> to get inside.</p>"
-      :'<div id="ev-draw-status" class="muted" style="margin:4px 0">Tap ✏️ Draw to sketch the new boundary on the map.</div>'+
-       '<div class="row wrap"><button class="btn" data-act="ev-bound-draw">✏️ Draw new boundary</button>'+
-       '<button class="btn ghostbtn" data-act="ev-draw-undo">↩️ Undo</button>'+
-       '<button class="btn ghostbtn" data-act="ev-draw-clear">🗑 Clear</button></div>'+
-       '<button class="btn primary" id="ev-bound-broadcast" data-act="ev-bound-broadcast" disabled style="margin-top:8px">Broadcast (5 min grace — hunters exempt)</button>')+
+      :'<p class="muted" style="margin:4px 0">Opens a fullscreen drawing view. Sketch the new boundary, then broadcast — runners get 5 minutes to get inside (hunters exempt).</p>'+
+       '<button class="btn" data-act="ev-bound-draw">✏️ Draw new boundary</button>')+
     "</div>"+
     '<div class="card"><b>📸 Photo challenge</b>'+
     (phA?'<p class="warnbox">Active: '+esc(e.photo.text)+' — <b data-live="photo-deadline">'+fmtMMSS(e.photo.deadline-Date.now())+"</b></p>"
@@ -995,50 +1039,6 @@ function renderTopbar(){
   $("tb-role").textContent="👤 "+r;
 }
 
-/* ------- QR scanner ------- */
-async function openScanner(){
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ toast("Camera not supported here"); return; }
-  if(typeof jsQR==="undefined"){ toast("Scanner library failed to load"); return; }
-  $("modal-scan").classList.remove("hidden");
-  try{ scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}}); }
-  catch(e){ closeScanner(); toast("Camera permission denied"); return; }
-  const v=$("scan-video"); v.srcObject=scanStream; await v.play().catch(()=>{});
-  const c=$("scan-canvas"), ctx=c.getContext("2d",{willReadFrequently:true});
-  const loop=()=>{
-    if(v.readyState>=2&&v.videoWidth){
-      c.width=v.videoWidth; c.height=v.videoHeight; ctx.drawImage(v,0,0);
-      const img=ctx.getImageData(0,0,c.width,c.height);
-      const code=jsQR(img.data,c.width,c.height,{inversionAttempts:"dontInvert"});
-      if(code&&code.data){ closeScanner(); handleScan(code.data); return; }
-    }
-    scanRaf=requestAnimationFrame(loop);
-  };
-  scanRaf=requestAnimationFrame(loop);
-}
-function closeScanner(){
-  if(scanRaf){cancelAnimationFrame(scanRaf);scanRaf=null;}
-  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
-  $("modal-scan").classList.add("hidden");
-}
-function handleScan(txt){
-  let o=null; try{o=JSON.parse(txt);}catch(e){}
-  if(o&&o.t==="bmh"&&typeof o.c==="string"){
-    if(S.code){ toast("Already in a game"); return; }
-    $("inp-code").value=o.c; attemptJoin(o.c); return;
-  }
-  if(o&&o.t==="bmhtag"&&o.c===S.code){
-    if(S.role!=="hunter"){ toast("Only hunters can tag"); return; }
-    const p=S.players[o.p];
-    if(!p){ toast("Unknown player"); return; }
-    if(p.status==="ghost"){ toast(p.name+" is already out"); return; }
-    confirmAsk("Tag "+p.name+"?",()=>{
-      eliminate(o.p,"Tagged by "+S.name,{taggedBy:S.uid}); vibrate([100,60,100]);
-    });
-    return;
-  }
-  if(/^[A-Z0-9]{4,6}$/.test(txt)){ if(!S.code){ $("inp-code").value=txt; attemptJoin(txt); } return; }
-  toast("QR not recognized");
-}
 function confirmAsk(text,cb){ $("confirm-text").textContent=text; S.confirmCb=cb; $("modal-confirm").classList.remove("hidden"); }
 
 /* ------- photos ------- */
@@ -1070,7 +1070,7 @@ function startTestMode(){
   const poly=[{lat:c.lat+0.002,lng:c.lng-0.003},{lat:c.lat+0.002,lng:c.lng+0.003},
               {lat:c.lat-0.002,lng:c.lng+0.003},{lat:c.lat-0.002,lng:c.lng-0.003}];
   S.b.set("games/TEST/meta",{hostId:S.uid,hostName:S.name,status:"lobby",createdAt:Date.now(),timeLimitMin:45,
-    boundary:{type:"poly",points:poly},spawn:{lat:c.lat+0.0005,lng:c.lng+0.0005}});
+    secret:"TESTSECRET",boundary:{type:"poly",points:poly},spawn:{lat:c.lat+0.0005,lng:c.lng+0.0005}});
   S.b.set("games/TEST/players/test-me",{name:S.name,role:"host",status:"admin",agreed:true,joinedAt:Date.now()});
   const bots=[["b1","Hunter One","hunter"],["b2","Hunter Two","hunter"],["r1","Runner Rae","runner"],
     ["r2","Runner Roz","runner"],["r3","Runner Sid","runner"],["r4","Runner Tim","runner"]];
@@ -1091,7 +1091,7 @@ function resetLocal(){
   unsubAll(); stopGameTimers(); stopDraw();
   if(botI){clearInterval(botI);botI=null;} if(simI){clearInterval(simI);simI=null;}
   Object.assign(S,{mode:null,code:null,uid:null,role:"pending",status:null,meta:null,players:{},live:{},pings:{},
-    events:{},photos:{},result:null,resultShown:false,lastMetaStatus:null,photoPin:null,outsideSince:0,simOutside:false});
+    events:{},photos:{},result:null,resultShown:false,lastMetaStatus:null,photoPin:null,outsideSince:0,simOutside:false,tagPid:null});
   boundSig=""; if(boundLayer&&MAP){MAP.removeLayer(boundLayer);boundLayer=null;}
 }
 function botTick(){
@@ -1130,9 +1130,6 @@ document.addEventListener("click",e=>{
   const act=el.dataset.act;
   switch(act){
     case "home-join": attemptJoin(($("inp-code").value||"").trim()); break;
-    case "home-scan": {
-      if(!($("inp-name").value||"").trim()){ toast("Enter your name first"); break; }
-      openScanner(); break; }
     case "home-test": startTestMode(); break;
     case "reset-app": try{localStorage.removeItem("bmh_session");localStorage.removeItem("bmh_uid");}catch(e){} toast("Cleared saved session"); break;
     case "rules-back": $("screen-rules").classList.add("hidden"); $("screen-home").classList.remove("hidden"); break;
@@ -1150,26 +1147,27 @@ document.addEventListener("click",e=>{
       else toast("No GPS fix yet — try again in a few seconds");
       break;
     case "host-pick-spawn": S.tapMode="spawn"; toast("Tap the map to place SPAWN"); break;
-    case "host-draw-bound": startDraw("setup"); break;
-    case "host-draw-undo": undoDrawPoint(); break;
-    case "host-draw-clear": clearDrawPoints(); break;
-    case "host-draw-save": {
+    case "host-draw-bound": openDraw("setup"); break;
+    case "ev-bound-draw": openDraw("event"); break;
+    case "draw-undo": { const d=S.draw; if(d&&d.points.length){ d.points.pop(); redrawDrawPreview(); updateDrawUI(); } break; }
+    case "draw-clear": { const d=S.draw; if(d){ d.points=[]; redrawDrawPreview(); updateDrawUI(); } break; }
+    case "draw-cancel": closeDraw(true); break;
+    case "draw-save": {
       const d=S.draw;
-      if(!d||d.kind!=="setup"||d.points.length<3){ toast("Draw at least 3 points first"); break; }
-      const pts=d.points.slice();
-      S.b.set(P()+"/meta/boundary",{type:"poly",points:pts});
-      stopDraw(); toast("Boundary saved — "+pts.length+" points"); break; }
+      if(!d||d.points.length<3){ toast("Need at least 3 points"); break; }
+      const pts=d.points.slice(); const kind=d.kind;
+      if(kind==="setup"){
+        S.b.set(P()+"/meta/boundary",{type:"poly",points:pts});
+        toast("Boundary saved — "+pts.length+" points");
+      }else{
+        S.b.set(P()+"/events/boundaryChange",{type:"poly",points:pts,deadline:Date.now()+BOUNDARY_EVENT_MS,closed:false});
+        sysChat("⚠️ BOUNDARY CHANGE — you have 5 minutes to get inside the new boundary!");
+        toast("Boundary change broadcast!");
+      }
+      closeDraw(true);
+      if(kind!=="setup") renderRolePanel(true);
+      break; }
     case "host-start": hostStartGame(); break;
-    case "ev-bound-draw": startDraw("event"); break;
-    case "ev-draw-undo": undoDrawPoint(); break;
-    case "ev-draw-clear": clearDrawPoints(); break;
-    case "ev-bound-broadcast": {
-      const d=S.draw;
-      if(!d||d.kind!=="event"||d.points.length<3){ toast("Draw at least 3 points first"); break; }
-      const pts=d.points.slice();
-      S.b.set(P()+"/events/boundaryChange",{type:"poly",points:pts,deadline:Date.now()+BOUNDARY_EVENT_MS,closed:false});
-      sysChat("⚠️ BOUNDARY CHANGE — you have 5 minutes to get inside the new boundary!");
-      stopDraw(); toast("Boundary change broadcast!"); renderRolePanel(true); break; }
     case "ev-photo-pin": S.tapMode="photoPin"; toast("Tap the map to pin the photo place"); break;
     case "ev-photo-broadcast": {
       const txt=($("photo-text")||{}).value||"";
@@ -1207,8 +1205,35 @@ document.addEventListener("click",e=>{
         finalize(runners.some(p=>p.status==="active")?"runners":"hunters","Host ended the game");
       });
       break;
-    case "scan-open": openScanner(); break;
-    case "scan-close": closeScanner(); break;
+    /* --- tagging via rotating code --- */
+    case "tag-open": {
+      const list=Object.entries(S.players).filter(([id,p])=>p.role==="runner"&&p.status==="active");
+      if(!list.length){ toast("No active runners left"); break; }
+      S.tagPid=null;
+      $("tag-list").innerHTML=list.map(([id,p])=>
+        '<button class="btn ghostbtn" style="width:100%;margin:4px 0" data-act="tag-pick" data-id="'+id+'">'+esc(p.name||"Runner")+" →</button>").join("");
+      $("tag-list").classList.remove("hidden"); $("tag-entry").classList.add("hidden");
+      $("modal-tag").classList.remove("hidden");
+      break; }
+    case "tag-pick": {
+      S.tagPid=el.dataset.id;
+      $("tag-name").textContent=(S.players[S.tagPid]||{}).name||"the runner";
+      $("tag-list").classList.add("hidden"); $("tag-entry").classList.remove("hidden");
+      const ti=$("tag-code"); ti.value=""; ti.focus();
+      break; }
+    case "tag-back": S.tagPid=null; $("tag-entry").classList.add("hidden"); $("tag-list").classList.remove("hidden"); break;
+    case "tag-close": $("modal-tag").classList.add("hidden"); S.tagPid=null; break;
+    case "tag-confirm": {
+      if(!S.tagPid) break;
+      const code=($("tag-code").value||"").trim().toUpperCase();
+      const secret=(S.meta&&S.meta.secret)||S.code; const w=tagWindow();
+      if(code===calcCode(secret,S.tagPid,w)||code===calcCode(secret,S.tagPid,w-1)||code===calcCode(secret,S.tagPid,w+1)){
+        const nm=(S.players[S.tagPid]||{}).name||"Runner";
+        $("modal-tag").classList.add("hidden");
+        eliminate(S.tagPid,"Tagged by "+S.name,{taggedBy:S.uid});
+        vibrate([100,60,100]); toast("Tagged "+nm+"! 👻");
+      } else toast("Wrong code — check the runner's screen (it rotates every 30s)");
+      break; }
     case "confirm-yes": $("modal-confirm").classList.add("hidden"); if(S.confirmCb){const cb=S.confirmCb;S.confirmCb=null;cb();} break;
     case "confirm-no": $("modal-confirm").classList.add("hidden"); S.confirmCb=null; break;
     case "result-home": clearSession(); location.reload(); break;
@@ -1239,8 +1264,17 @@ async function boot(){
   $("inp-name").addEventListener("keydown",e=>{ if(e.key==="Enter") $("inp-code").focus(); });
   $("inp-code").addEventListener("input",e=>{ e.target.value=e.target.value.toUpperCase(); });
   $("inp-code").addEventListener("keydown",e=>{ if(e.key==="Enter") attemptJoin(($("inp-code").value||"").trim()); });
+  $("tag-code").addEventListener("input",e=>{ e.target.value=e.target.value.toUpperCase(); });
+  $("tag-code").addEventListener("keydown",e=>{ if(e.key==="Enter"){ const b=document.querySelector('[data-act="tag-confirm"]'); if(b) b.click(); } });
   if(!CFG_OK){ const w=$("backend-warn"); w.textContent="⚠️ Database URL missing — Test Mode only."; w.classList.remove("hidden"); return; }
   try{
+    /* deep link: site.com/?join=CODE (from scanning the host's QR with a normal camera app) */
+    const q=new URLSearchParams(location.search);
+    const jc=(q.get("join")||"").toUpperCase();
+    if(jc&&/^[A-Z0-9]{4,6}$/.test(jc)&&!localStorage.getItem("bmh_session")){
+      $("inp-code").value=jc; $("inp-name").focus();
+      toast("Code "+jc+" loaded — enter your name and join!");
+    }
     const raw=localStorage.getItem("bmh_session"); if(!raw) return;
     const s=JSON.parse(raw);
     const b=await makeLiveBackend(); if(!b) return;
