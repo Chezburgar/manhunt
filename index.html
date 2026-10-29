@@ -106,7 +106,6 @@ input:focus{outline:none;border-color:var(--acc)}
 .mk.ping{border-radius:9px}
 #modal-confirm,#modal-tag{position:fixed;top:0;left:0;right:0;bottom:0;z-index:80;background:rgba(4,7,10,.95);
   display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;padding:20px}
-/* fullscreen boundary drawing overlay */
 #screen-draw{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;pointer-events:none;
   display:flex;flex-direction:column;justify-content:space-between}
 .draw-top{pointer-events:auto;display:flex;gap:8px;align-items:center;padding:calc(env(safe-area-inset-top) + 10px) 10px 10px}
@@ -144,6 +143,12 @@ input[type=number]{margin:0}
       <label class="flabel" for="inp-code">Game code</label>
       <input id="inp-code" placeholder="Enter code" autocomplete="off" autocapitalize="characters"/>
       <button class="btn primary big" data-act="home-join">Join Game</button>
+    </div>
+    <div class="card hidden" id="perm-card">
+      <b>🔔 Turn on notifications</b>
+      <p class="muted" style="margin:6px 0">You'll be alerted when tagged, when boundaries change, for photo challenges, and when the game ends — even with the app in the background. On iPhone: add this site to your Home Screen (Share → Add to Home Screen) for notifications to work.</p>
+      <button class="btn primary" data-act="enable-perms">Enable notifications &amp; location</button>
+      <div class="muted" id="perm-status" style="margin-top:6px"></div>
     </div>
     <button class="btn ghostbtn" data-act="home-test">🧪 Test Mode — try every feature solo</button>
     <p id="backend-warn" class="warn hidden"></p>
@@ -293,7 +298,7 @@ input[type=number]{margin:0}
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
-/* ================= BETHESDA MANHUNT v4 =================
+/* ================= BETHESDA MANHUNT v5 =================
    ↓↓ YOUR DATABASE (pre-configured) ↓↓ */
 const CFG = { databaseURL: "https://manhunt-e51a8-default-rtdb.firebaseio.com" };
 const CFG_OK = !!CFG.databaseURL;
@@ -304,7 +309,7 @@ const PING_MS = 60000;
 const OUTSIDE_LIMIT_MS = 60000;
 const BOUNDARY_EVENT_MS = 300000;
 const SPAWN_ARRIVE_M = 25;
-const TAG_WINDOW_MS = 30000;      // rotating tag-code window
+const TAG_WINDOW_MS = 30000;
 const TEST_CENTER = { lat: 38.9847, lng: -77.0947 };
 const $ = id => document.getElementById(id);
 
@@ -326,11 +331,11 @@ window.addEventListener("unhandledrejection",e=>showFatal((e.reason&&e.reason.me
 const S = { mode:null, b:null, code:null, uid:null, name:"", role:"pending", status:null,
   meta:null, players:{}, live:{}, pings:{}, events:{}, photos:{}, result:null, resultShown:false,
   chatTab:"global", lastFix:null, outsideSince:0, lastLiveWrite:0, lastPingWrite:0,
-  tapMode:null, draw:null, photoPin:null, pending:null, tagPid:null,
+  tapMode:null, draw:null, photoPin:null, pending:null, tagPid:null, lastMyPhoto:null,
   simOutside:false, simT:0, bots:null, unsub:[], chatUnsub:null, lastMetaStatus:null };
 let MAP=null, myMarker=null, spawnMk=null, boundLayer=null, boundSig="", evPreview=null, photoMk=null;
 const dynMarkers={}; const outSince={};
-let tickI=null, pingI=null, botI=null, simI=null, watchId=null, wakeLock=null;
+let tickI=null, pingI=null, botI=null, simI=null, watchId=null, wakeLock=null, swReg=null;
 
 /* ------- utils ------- */
 function distM(a,b){ const R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lng-a.lng)*Math.PI/180;
@@ -351,7 +356,42 @@ function clearSession(){ try{ localStorage.removeItem("bmh_session"); }catch(e){
 function fullTrackActive(){ const ft=S.events&&S.events.fullTrack; return !!(ft && Date.now()<ft.until); }
 function inGame(){ return S.meta && S.meta.status==="running"; }
 
-/* ------- rotating tag codes (replaces QR scanning) ------- */
+/* ------- notifications ------- */
+function notify(title,body){
+  try{
+    if(!("Notification" in window) || Notification.permission!=="granted") return;
+    if(!document.hidden) return; /* in-app toasts already cover foreground */
+    if(swReg && swReg.showNotification){ swReg.showNotification(title,{body:body||"",tag:"bmh-"+Date.now(),renotify:true}); }
+    else { new Notification(title,{body:body||""}); }
+  }catch(e){}
+}
+function askPerms(){
+  /* fires the location prompt immediately, and the notification prompt where the browser allows it */
+  try{
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(()=>{},()=>{}, {enableHighAccuracy:false,timeout:15000,maximumAge:60000});
+    }
+  }catch(e){}
+  try{
+    if("Notification" in window && Notification.permission==="default"){
+      const p=Notification.requestPermission();
+      if(p&&p.then) p.then(()=>renderPermCard()).catch(()=>{});
+    }
+  }catch(e){}
+}
+function renderPermCard(){
+  const card=$("perm-card"); if(!card) return;
+  const okN=("Notification" in window)&&Notification.permission==="granted";
+  card.classList.toggle("hidden",okN);
+  const st=$("perm-status");
+  if(st){ let n="unsupported"; if("Notification" in window) n=Notification.permission;
+    st.textContent="Notifications: "+n;
+    try{ if(navigator.permissions&&navigator.permissions.query){
+      navigator.permissions.query({name:"geolocation"}).then(r=>{ st.textContent="Notifications: "+n+" · Location: "+r.state; }).catch(()=>{});
+    } }catch(e){} }
+}
+
+/* ------- rotating tag codes ------- */
 function tagWindow(){ return Math.floor(Date.now()/TAG_WINDOW_MS); }
 function calcCode(secret,pid,w){
   const s=String(secret)+"|"+pid+"|"+w; let h=5381;
@@ -606,7 +646,6 @@ function tick(){
   if(S.role==="host") hostTick(now);
   updateLiveBits(now);
   if(S.role==="hunter") renderPingList();
-  /* rotating tag code display for runners */
   const tc=$("my-tagcode");
   if(tc&&S.meta&&S.role==="runner"&&S.status==="active"){
     tc.textContent=tagCodeFor(S.uid);
@@ -705,7 +744,10 @@ function subscribeAll(){
     if(me){
       const becameGhost=me.status==="ghost"&&S.status!=="ghost";
       S.role=me.role||S.role; S.status=me.status||null; S.arrived=!!me.arrived;
-      if(becameGhost&&inGame()){ toast("👻 You were tagged! Return to spawn IMMEDIATELY"); vibrate([120,80,120]); openTab("role"); }
+      if(becameGhost&&inGame()){
+        toast("👻 You were tagged! Return to spawn IMMEDIATELY"); vibrate([120,80,120]); openTab("role");
+        notify("👻 You were tagged!","Return to spawn immediately!");
+      }
       renderTopbar(); renderPlayersList(); renderRolePanel();
     }
     renderSetupIfHost(); renderMapAll();
@@ -713,22 +755,48 @@ function subscribeAll(){
   U.push(S.b.onValue(P()+"/live",l=>{ S.live=l||{}; renderMapAll(); }));
   U.push(S.b.onValue(P()+"/pings",p=>{ S.pings=p||{}; renderMapAll(); renderPingList(); }));
   U.push(S.b.onValue(P()+"/events",e=>{
-    const prevPh=S.events&&S.events.photo; S.events=e||{};
+    const prevE=S.events||{}; S.events=e||{};
+    const evc=S.events.boundaryChange;
+    if(evc&&(!prevE.boundaryChange||prevE.boundaryChange.deadline!==evc.deadline)&&!evc.closed&&Date.now()<evc.deadline){
+      vibrate([80,60,80]);
+      notify("⚠️ Boundary change!","You have 5 minutes to get inside the new boundary");
+      if(S.role==="runner"&&S.status==="active"){ toast("⚠️ NEW BOUNDARY — get inside!"); openTab("role"); }
+    }
     const ph=S.events.photo;
-    if(ph&&(!prevPh||prevPh.deadline!==ph.deadline)&&S.role==="runner"&&S.status==="active"&&!ph.closed){
-      toast("📸 NEW PHOTO CHALLENGE!"); vibrate([80,60,80]); openTab("role"); }
+    if(ph&&(!prevE.photo||prevE.photo.deadline!==ph.deadline)&&!ph.closed){
+      vibrate([80,60,80]);
+      if(S.role==="runner"&&S.status==="active"){ toast("📸 NEW PHOTO CHALLENGE!"); openTab("role"); }
+      notify("📸 Photo challenge",ph.text||"Check the app");
+    }
+    const fte=S.events.fullTrack;
+    if(fte&&(!prevE.fullTrack||prevE.fullTrack.until!==fte.until)&&Date.now()<fte.until){
+      if(S.role==="runner"&&S.status==="active") notify("🎯 Hunters have FULL tracking!","Hide or move!");
+    }
     renderBanner(); renderMapAll(); renderRolePanel(true);
   }));
-  U.push(S.b.onValue(P()+"/photos",ph=>{ S.photos=ph||{}; renderRolePanel(true); }));
-  U.push(S.b.onValue(P()+"/result",r=>{ S.result=r; if(r&&S.meta&&S.meta.status==="ended") showResult(r); }));
+  U.push(S.b.onValue(P()+"/photos",ph=>{
+    S.photos=ph||{};
+    const mine=S.photos[S.uid];
+    if(mine&&S.lastMyPhoto!=="approved"&&mine.status==="approved"){
+      notify("✅ Photo approved","Challenge complete");
+    }
+    S.lastMyPhoto=mine?mine.status:null;
+    renderRolePanel(true);
+  }));
+  U.push(S.b.onValue(P()+"/result",r=>{
+    S.result=r;
+    if(r){ notify("🏁 Game over",r.winner==="runners"?"Runners win! 🏃":"Hunters win! 🔴"); }
+    if(r&&S.meta&&S.meta.status==="ended") showResult(r);
+  }));
 }
 function onMetaTransition(prev,st){
-  if(st==="running") enterGame();
+  if(st==="running"){ enterGame(); notify("🎮 Game started!","Good luck — stay alert."); }
   if(st==="ended"){ stopGameTimers(); if(S.result) showResult(S.result); }
 }
 
 /* ------- flows: join / host / rules ------- */
 function attemptJoin(code){
+  askPerms(); /* gesture-bound — guarantees the prompts fire */
   const name=($("inp-name").value||"").trim();
   if(!name){ toast("Enter your name first"); return; }
   if(!code){ toast("Enter a code"); return; }
@@ -921,6 +989,7 @@ function testControls(){
     '<button class="btn ghostbtn" data-act="test-tag-runner">Sim: tag a runner</button>'+
     '<button class="btn ghostbtn" data-act="test-teleport">'+(S.simOutside?"Stop teleport":"Teleport outside boundary")+"</button>"+
     '<button class="btn ghostbtn" data-act="test-arrive">Sim: arrive at spawn</button>'+
+    '<button class="btn ghostbtn" data-act="test-notify">🔔 Test notification</button>'+
     '<button class="btn ghostbtn" data-act="test-end">Force end (runners win)</button></div></div>';
 }
 function runnerPanel(){
@@ -1064,6 +1133,7 @@ function grayPhoto(){
 
 /* ------- TEST MODE ------- */
 function startTestMode(){
+  askPerms();
   resetLocal();
   S.mode="test"; S.b=new LocalBackend(); S.uid="test-me"; S.code="TEST"; S.name="You"; S.role="host"; S.status="admin";
   const c=TEST_CENTER;
@@ -1091,7 +1161,7 @@ function resetLocal(){
   unsubAll(); stopGameTimers(); stopDraw();
   if(botI){clearInterval(botI);botI=null;} if(simI){clearInterval(simI);simI=null;}
   Object.assign(S,{mode:null,code:null,uid:null,role:"pending",status:null,meta:null,players:{},live:{},pings:{},
-    events:{},photos:{},result:null,resultShown:false,lastMetaStatus:null,photoPin:null,outsideSince:0,simOutside:false,tagPid:null});
+    events:{},photos:{},result:null,resultShown:false,lastMetaStatus:null,photoPin:null,outsideSince:0,simOutside:false,tagPid:null,lastMyPhoto:null});
   boundSig=""; if(boundLayer&&MAP){MAP.removeLayer(boundLayer);boundLayer=null;}
 }
 function botTick(){
@@ -1132,6 +1202,25 @@ document.addEventListener("click",e=>{
     case "home-join": attemptJoin(($("inp-code").value||"").trim()); break;
     case "home-test": startTestMode(); break;
     case "reset-app": try{localStorage.removeItem("bmh_session");localStorage.removeItem("bmh_uid");}catch(e){} toast("Cleared saved session"); break;
+    case "enable-perms": {
+      let done=false;
+      const finish=()=>{ if(done) return; done=true; renderPermCard();
+        const n=("Notification" in window)?Notification.permission:"unsupported";
+        if(n==="granted") toast("Notifications on 🔔 — location prompt shown too");
+        else if(n==="denied") toast("Blocked — enable notifications in browser settings");
+        else if(n==="default") toast("Tap Allow when the browser asks");
+        else toast("Notifications unsupported here — on iPhone, use Add to Home Screen");
+      };
+      if("Notification" in window && Notification.permission==="default"){
+        try{ const p=Notification.requestPermission();
+          if(p&&p.then) p.then(finish).catch(finish); else setTimeout(finish,600);
+        }catch(e){ finish(); }
+        if(navigator.geolocation){ navigator.geolocation.getCurrentPosition(()=>{},()=>{},{timeout:10000}); }
+      } else {
+        if(navigator.geolocation){ navigator.geolocation.getCurrentPosition(()=>{toast("Location on 📍");renderPermCard();},()=>{toast("Location blocked — check browser settings");},{timeout:10000}); }
+        else finish();
+      }
+      break; }
     case "rules-back": $("screen-rules").classList.add("hidden"); $("screen-home").classList.remove("hidden"); break;
     case "rules-continue":
       if(!S.pending) break;
@@ -1205,7 +1294,6 @@ document.addEventListener("click",e=>{
         finalize(runners.some(p=>p.status==="active")?"runners":"hunters","Host ended the game");
       });
       break;
-    /* --- tagging via rotating code --- */
     case "tag-open": {
       const list=Object.entries(S.players).filter(([id,p])=>p.role==="runner"&&p.status==="active");
       if(!list.length){ toast("No active runners left"); break; }
@@ -1244,6 +1332,19 @@ document.addEventListener("click",e=>{
       if(act.length) eliminate(act[Math.floor(Math.random()*act.length)],"Tagged (test)"); break; }
     case "test-teleport": S.simOutside=!S.simOutside; toast(S.simOutside?"You will now teleport outside the boundary":"Back inside"); renderRolePanel(true); break;
     case "test-arrive": S.b.set("games/TEST/players/test-me/arrived",true); toast("Marked as arrived at spawn"); break;
+    case "test-notify": {
+      try{
+        if(!("Notification" in window)){ toast("Notifications unsupported here"); break; }
+        if(Notification.permission==="granted"){
+          if(swReg&&swReg.showNotification) swReg.showNotification("🔔 Test notification","Notifications are working!");
+          else new Notification("🔔 Test notification",{body:"Notifications are working!"});
+          toast("Sent — check your notifications");
+        } else {
+          const p=Notification.requestPermission();
+          if(p&&p.then) p.then(v=>toast("Permission: "+v)); else toast("Permission asked");
+        }
+      }catch(e){ toast("Notification failed"); }
+      break; }
     case "test-end": finalize("runners","Test end"); break;
   }
 });
@@ -1260,6 +1361,10 @@ document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&S.code){
 
 /* ------- boot ------- */
 async function boot(){
+  /* permissions first: location prompt fires on load; notifications auto-attempt (browsers may
+     defer it to first tap — the home-screen card + first button press guarantee it) */
+  askPerms(); renderPermCard();
+  try{ if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").then(r=>{swReg=r;}).catch(()=>{}); } }catch(e){}
   try{ initMap(); }catch(e){ console.warn("map init failed",e); }
   $("inp-name").addEventListener("keydown",e=>{ if(e.key==="Enter") $("inp-code").focus(); });
   $("inp-code").addEventListener("input",e=>{ e.target.value=e.target.value.toUpperCase(); });
@@ -1268,7 +1373,6 @@ async function boot(){
   $("tag-code").addEventListener("keydown",e=>{ if(e.key==="Enter"){ const b=document.querySelector('[data-act="tag-confirm"]'); if(b) b.click(); } });
   if(!CFG_OK){ const w=$("backend-warn"); w.textContent="⚠️ Database URL missing — Test Mode only."; w.classList.remove("hidden"); return; }
   try{
-    /* deep link: site.com/?join=CODE (from scanning the host's QR with a normal camera app) */
     const q=new URLSearchParams(location.search);
     const jc=(q.get("join")||"").toUpperCase();
     if(jc&&/^[A-Z0-9]{4,6}$/.test(jc)&&!localStorage.getItem("bmh_session")){
