@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>Bethesda Manhunt</title>
+<meta name="theme-color" content="#0b0f14"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<link rel="icon" href="icon.svg"/>
+<link rel="manifest" href="manifest.webmanifest"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:#0b0f14;color:#e8eef5;font-family:system-ui,-apple-system,sans-serif}
+#map{position:fixed;inset:0;z-index:0}
+.screen{position:fixed;inset:0;z-index:50;background:#0b0f14;display:flex;flex-direction:column;gap:10px;padding:calc(env(safe-area-inset-top) + 20px) 18px 20px;overflow:auto}
+.hidden{display:none!important}
+h1{font-size:34px;line-height:1.05;margin:6px 0}h2,h3{margin:4px 0}
+input,button{font:inherit}
+input[type=text],input:not([type]),input[type=number]{width:100%;padding:13px;border-radius:12px;border:1px solid #2a3a4d;background:#141b23;color:#e8eef5}
+.btn{padding:13px 16px;border-radius:12px;border:1px solid #2a3a4d;background:#1a2531;color:#e8eef5;font-weight:600;cursor:pointer}
+.btn.primary{background:#2f7dff;border-color:#2f7dff}.btn.danger{background:#c0392b;border-color:#c0392b}
+.btn.ghostbtn{background:transparent}.btn.big{font-size:18px;padding:15px}.btn:disabled{opacity:.45}
+.row{display:flex;gap:8px;align-items:center}.row.wrap{flex-wrap:wrap}.row-between{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card{background:#141b23;border:1px solid #223041;border-radius:14px;padding:12px;margin-bottom:10px}
+.muted{color:#8fa3b8;font-size:13px}.center{text-align:center}.fineprint{font-size:11px;color:#62788d}
+.warn{color:#ffb020;font-size:13px}.warnbox{background:#3a2b10;border:1px solid #ffb020;border-radius:10px;padding:8px;font-size:14px}
+.big-code{font-size:34px;font-weight:800;letter-spacing:6px;text-align:center}
+#topbar{position:fixed;top:0;left:0;right:0;z-index:30;display:flex;gap:6px;flex-wrap:wrap;padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:rgba(11,15,20,.92);font-size:12px}
+.pill{background:#1a2531;border:1px solid #2a3a4d;border-radius:999px;padding:4px 10px;font-weight:700}
+#tabs{position:fixed;bottom:0;left:0;right:0;z-index:30;display:flex;background:rgba(13,18,25,.97);border-top:1px solid #223041;padding-bottom:env(safe-area-inset-bottom)}
+.tabbtn{flex:1;padding:13px 4px;background:none;border:0;color:#8fa3b8;font-weight:700;font-size:14px}
+.tabbtn.active{color:#fff;border-top:2px solid #2f7dff}
+.panel{position:fixed;left:0;right:0;bottom:49px;max-height:68vh;overflow:auto;z-index:25;background:rgba(13,18,25,.97);border-top:1px solid #223041;border-radius:16px 16px 0 0;padding:12px 12px 18px}
+#banner{position:fixed;top:calc(env(safe-area-inset-top) + 48px);left:8px;right:8px;z-index:28;background:#3a2b10;border:1px solid #ffb020;border-radius:12px;padding:9px 12px;font-size:14px}
+#toast{position:fixed;bottom:130px;left:50%;transform:translateX(-50%);z-index:99;background:#223041;border:1px solid #3a4f66;padding:10px 16px;border-radius:12px;max-width:88vw;font-size:14px}
+.plist{list-style:none;margin:6px 0;padding:0}.plist li{display:flex;justify-content:space-between;padding:7px 4px;border-bottom:1px solid #1d2937;font-size:14px}.plist li.me{color:#7fb2ff}
+.rolebadge{display:inline-block;padding:4px 12px;border-radius:999px;font-weight:800;color:#0b0f14}
+.rolebadge.runner{background:#37d67a}.rolebadge.hunter{background:#ff4d4f}.rolebadge.ghost{background:#8a97a6}.rolebadge.host{background:#b06cff}
+.rules li{margin:10px 0;font-size:16px}.agree{display:flex;gap:10px;align-items:center;font-size:15px;margin:8px 0}
+.chat-list{height:34vh;overflow:auto;background:#0e141b;border-radius:12px;padding:8px;margin:8px 0}
+.msg{margin:6px 0;padding:7px 10px;border-radius:12px;background:#1a2531;max-width:85%;font-size:14px}
+.msg.me{margin-left:auto;background:#1f3a63}.msg.sys{background:#3a2b10;color:#ffcf7d;font-size:13px}
+.msg b{font-size:12px;color:#9fb6cc;display:block}
+.photoprev{max-width:100%;max-height:150px;border-radius:10px;display:block;margin:6px 0}
+.phrow{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid #1d2937}.phrow img{width:110px;height:82px;object-fit:cover;border-radius:8px}
+.testbox{border-color:#7a4dff}.mk{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#0b0f14;border:2px solid rgba(255,255,255,.85);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.mk.ping{border-radius:8px}
+#modal-scan,#modal-confirm{position:fixed;inset:0;z-index:80;background:rgba(4,7,10,.94);display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;padding:20px}
+#scan-video{width:min(92vw,480px);border-radius:14px;background:#000}
+.scanhint{color:#ffb020;font-weight:700}
+label{font-size:14px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="topbar" class="hidden"><span id="tb-code" class="pill"></span><span id="tb-role" class="pill"></span><span id="tb-timer" class="pill"></span><span id="tb-bound" class="pill"></span></div>
+<div id="banner" class="hidden"></div>
+
+<section id="screen-home" class="screen">
+  <h1>🎯 BETHESDA<br/>MANHUNT</h1>
+  <p class="muted">One host. Two hunters. Everyone else runs.</p>
+  <input id="inp-name" placeholder="Your name" autocomplete="off"/>
+  <input id="inp-code" placeholder="Game code (host code: 3097)" autocomplete="off"/>
+  <button class="btn primary big" data-act="home-join">Join / Host Game</button>
+  <button class="btn" data-act="home-scan">📷 Scan QR to join</button>
+  <button class="btn ghostbtn" data-act="home-test">🧪 Test Mode (try all features)</button>
+  <p id="backend-warn" class="warn hidden"></p>
+  <p class="fineprint">Play safely: obey traffic laws, stay aware of your surroundings at all times.</p>
+</section>
+
+<section id="screen-rules" class="screen hidden">
+  <h2>Rules</h2>
+  <ol class="rules">
+    <li>No jaywalking or disrupting others.</li>
+    <li>Do not violate the game rules or cheat.</li>
+    <li>Rules and boundaries can change fluidly — make sure you are paying attention.</li>
+    <li>Don't look at your phone at unsafe times.</li>
+  </ol>
+  <label class="agree"><input type="checkbox" id="chk-agree"/> I have read and agree to the rules</label>
+  <button class="btn primary big" data-act="rules-continue" id="btn-agree" disabled>Continue</button>
+  <button class="btn ghostbtn" data-act="rules-back">Back</button>
+</section>
+
+<section id="screen-lobby" class="screen hidden">
+  <h2>Lobby</h2>
+  <div class="card center"><div class="muted">GAME CODE</div><div class="big-code" id="lobby-code"></div></div>
+  <p class="muted">Waiting for the host to start…</p>
+  <ul id="lobby-players" class="plist"></ul>
+  <button class="btn ghostbtn" data-act="leave">Leave</button>
+</section>
+
+<section id="screen-result" class="screen hidden">
+  <h2 id="result-title"></h2>
+  <p id="result-sub" class="muted"></p>
+  <ul id="result-players" class="plist"></ul>
+  <button class="btn primary big" data-act="result-home">Back to Home</button>
+</section>
+
+<div id="panel-setup" class="panel hidden">
+  <div class="row-between"><h3>Host Setup</h3><button class="btn ghostbtn" data-act="leave">Exit</button></div>
+  <div class="card center"><div class="muted">SHARE THIS CODE / QR</div><div class="big-code" id="setup-code"></div><canvas id="qr-join"></canvas><p class="muted">Players scan this or type the code on the home screen</p></div>
+  <ul id="setup-players" class="plist"></ul>
+  <div class="card"><b>🏁 Spawn</b><div id="setup-spawn-val" class="muted">not set</div>
+    <div class="row wrap"><button class="btn" data-act="host-spawn-here">Use my location</button><button class="btn ghostbtn" data-act="host-pick-spawn">Pick on map</button></div></div>
+  <div class="card"><b>🗺️ Boundary</b><div id="setup-bound-val" class="muted">not set</div>
+    <button class="btn ghostbtn" data-act="host-pick-bound">Pick center on map</button>
+    <div><label>Radius: <span id="setup-radius-lab">400</span> m</label></div>
+    <input type="range" id="setup-radius" min="100" max="2000" step="50" value="400" style="width:100%"/></div>
+  <div class="card"><b>⏳ Time limit</b><div class="row"><input type="number" id="setup-tlimit" min="5" max="300" value="60" style="width:90px"/><span class="muted">minutes — runners win if anyone is untagged when it expires</span></div></div>
+  <button class="btn primary big" id="btn-start" data-act="host-start" disabled>▶️ Start Game</button>
+  <p class="muted">Start requires: spawn, boundary, and at least 3 players (2 hunters + at least 1 runner).</p>
+</div>
+
+<div id="panel-chat" class="panel hidden">
+  <div id="chat-tabs" class="row wrap"></div>
+  <div id="chat-list" class="chat-list"></div>
+  <div class="row"><input id="chat-text" placeholder="Message…" autocomplete="off"/><button class="btn primary" data-act="chat-send">Send</button></div>
+</div>
+
+<div id="panel-role" class="panel hidden"><div id="role-content"></div></div>
+
+<nav id="tabs" class="hidden">
+  <button class="tabbtn active" data-act="tab" data-tab="map">🗺️ Map</button>
+  <button class="tabbtn" data-act="tab" data-tab="chat" id="tab-chat">💬 Chat</button>
+  <button class="tabbtn" data-act="tab" data-tab="role">🎮 Game</button>
+</nav>
+
+<div id="modal-scan" class="modal hidden">
+  <video id="scan-video" playsinline muted></video>
+  <canvas id="scan-canvas" class="hidden"></canvas>
+  <div class="scanhint" id="scan-hint">Point the camera at a QR code</div>
+  <button class="btn" data-act="scan-close">Close</button>
+</div>
+
+<div id="modal-confirm" class="modal hidden"><div class="card" style="width:min(90vw,420px)"><p id="confirm-text"></p>
+  <div class="row"><button class="btn danger" data-act="confirm-yes">Yes</button><button class="btn ghostbtn" data-act="confirm-no">Cancel</button></div></div></div>
+
+<div id="toast" class="hidden"></div>
+
+<script>
+/* ============================================================
+   BETHESDA MANHUNT — static multiplayer manhunt game
+   ↓↓ PASTE YOUR FIREBASE CONFIG HERE ↓↓ (console.firebase.google.com)
+   ============================================================ */
+const CFG = {
+  apiKey: "PASTE_YOURS",
+  authDomain: "PASTE_YOURS",
+  databaseURL: "PASTE_YOURS",
+  projectId: "PASTE_YOURS",
+  appId: "PASTE_YOURS"
+};
+const CFG_OK = !CFG.apiKey.startsWith("PASTE");
+
+/* ------- constants ------- */
+const HOST_CODE = "3097";
+const PING_MS = 60000;            // hunters get a ping every minute
+const OUTSIDE_LIMIT_MS = 60000;   // 1 min outside boundary = eliminated
+const BOUNDARY_EVENT_MS = 300000; // 5 min to get inside new boundary
+const SPAWN_ARRIVE_M = 25;        // ghost "arrived back at spawn" radius
+const TEST_CENTER = { lat: 38.9847, lng: -77.0947 }; // Bethesda, MD (test mode)
+const $ = id => document.getElementById(id);
+
+/* ------- game state ------- */
+const S = { mode:null, b:null, code:null, uid:null, name:"", role:"pending", status:null,
+  meta:null, players:{}, live:{}, pings:{}, events:{}, photos:{}, result:null, resultShown:false,
+  chatTab:"global", lastFix:null, outsideSince:0, lastLiveWrite:0, lastPingWrite:0,
+  tapMode:null, evCenter:null, evRadius:300, photoPin:null, pending:null,
+  simOutside:false, simT:0, bots:null, unsub:[], chatUnsub:null, lastMetaStatus:null };
+let MAP=null, myMarker=null, spawnMk=null, boundCk=null, evCk=null, evPreview=null, photoMk=null;
+const dynMarkers={}; const outSince={};
+let tickI=null, pingI=null, botI=null, simI=null, watchId=null, wakeLock=null;
+let scanStream=null, scanRaf=null;
+
+/* ------- utils ------- */
+function distM(a,b){ const R=6371000,dLat=(b.lat-a.lat)*Math.PI/180,dLon=(b.lng-a.lng)*Math.PI/180;
+  const la1=a.lat*Math.PI/180,la2=b.lat*Math.PI/180;
+  const h=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h)); }
+function fmtMMSS(ms){ const s=Math.max(0,Math.ceil(ms/1000)); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function esc(t){ return String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function randCode(n){ const A="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let s=""; for(let i=0;i<n;i++)s+=A[Math.floor(Math.random()*A.length)]; return s; }
+function vibrate(p){ try{ navigator.vibrate && navigator.vibrate(p); }catch(e){} }
+let toastT=null;
+function toast(msg){ const el=$("toast"); el.textContent=msg; el.classList.remove("hidden");
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.add("hidden"),3200); }
+function P(){ return "games/"+S.code; }
+function saveSession(){ try{ localStorage.setItem("bmh_session", JSON.stringify({code:S.code,uid:S.uid,name:S.name})); }catch(e){} }
+function clearSession(){ try{ localStorage.removeItem("bmh_session"); }catch(e){} }
+function fullTrackActive(){ const ft=S.events&&S.events.fullTrack; return !!(ft && Date.now()<ft.until); }
+function inGame(){ return S.meta && S.meta.status==="running"; }
+
+/* ------- backends (Firebase OR local test simulation) ------- */
+class FBBackend{
+  constructor(){ firebase.initializeApp(CFG); this.db=firebase.database(); this.uid=null; }
+  async init(){ const cred=await firebase.auth().signInAnonymously(); this.uid=cred.user.uid; return this.uid; }
+  onValue(path,cb){ const r=this.db.ref(path); const h=r.on("value",s=>cb(s.val())); return ()=>r.off("value",h); }
+  async get(path){ const s=await this.db.ref(path).once("value"); return s.val(); }
+  set(path,val){ return this.db.ref(path).set(val); }
+  update(path,obj){ return this.db.ref(path).update(obj); }
+  push(path,val){ const r=this.db.ref(path).push(); r.set(val); return r.key; }
+}
+class LocalBackend{
+  constructor(){ this.data={}; this.subs=[]; this.uid="test-me"; }
+  _get(p){ return p.split("/").filter(Boolean).reduce((o,k)=>o==null?undefined:o[k],this.data); }
+  _setIn(path,val){ const ks=path.split("/").filter(Boolean); let o=this.data;
+    for(let i=0;i<ks.length-1;i++){ if(typeof o[ks[i]]!=="object"||o[ks[i]]==null)o[ks[i]]={}; o=o[ks[i]]; }
+    const last=ks[ks.length-1]; if(val===null) delete o[last]; else o[last]=val; this._emit(path); }
+  _emit(path){ const ks=path.split("/").filter(Boolean);
+    for(let i=0;i<=ks.length;i++){ const p=ks.slice(0,i).join("/");
+      for(const s of this.subs){ if(s.path===p) s.cb(this._get(p)===undefined?null:this._get(p)); } } }
+  onValue(path,cb){ const s={path,cb}; this.subs.push(s); cb(this._get(path)===undefined?null:this._get(path));
+    return ()=>{ this.subs=this.subs.filter(x=>x!==s); }; }
+  async get(path){ return this._get(path)===undefined?null:this._get(path); }
+  set(path,val){ this._setIn(path,val); }
+  update(path,obj){ for(const k in obj) this.set(path+"/"+k, obj[k]); }
+  push(path,val){ const id="p"+Math.random().toString(36).slice(2,9); this.set(path+"/"+id,val); return id; }
+}
+async function makeLiveBackend(){
+  if(!CFG_OK){ toast("Multiplayer not configured — paste your Firebase config into index.html (Test Mode still works)."); return null; }
+  try{
+    if(typeof firebase==="undefined") throw new Error("Firebase failed to load (check internet/CDN).");
+    const b=new FBBackend(); await b.init(); return b;
+  }catch(e){ console.error(e);
+    toast("Firebase error: "+(e&&e.message?e.message:e)+" — check config, Anonymous sign-in & DB rules."); return null; }
+}
+
+/* ------- map ------- */
+function initMap(){
+  if(typeof L==="undefined") return;
+  MAP=L.map("map",{zoomControl:false}).setView([TEST_CENTER.lat,TEST_CENTER.lng],15);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(MAP);
+  MAP.on("click",onMapClick);
+  setTimeout(()=>MAP.invalidateSize(),300);
+}
+function mkIcon(t){
+  const M={me:["#2f7dff","YOU"],spawn:["#b06cff","🏁"],hunter:["#ff4d4f","H"],runner:["#37d67a","R"],
+    ghost:["#8a97a6","👻"],host:["#b06cff","★"],ping:["#ffb020","R"]};
+  const [col,txt]=M[t.kind]||["#8a97a6","?"];
+  const cls="mk"+(t.kind==="ping"?" ping":"");
+  return L.divIcon({className:"",html:'<div class="'+cls+'" style="background:'+col+'">'+txt+"</div>",iconSize:[26,26],iconAnchor:[13,13]});
+}
+function popupHtml(t,pos){ const age=pos&&pos.ts?Math.round((Date.now()-pos.ts)/1000):null;
+  const nm=t.name||((S.players[t.id]||{}).name)||t.kind;
+  return "<b>"+esc(nm)+"</b><br>"+(t.kind==="ping"?"last ping: "+age+"s ago":t.kind==="me"?"you":""); }
+function posOfMe(){ return S.lastFix || (S.uid?S.live[S.uid]:null); }
+function visiblePlayers(){
+  const out=[];
+  for(const id in S.players){ const p=S.players[id]; const kindOf=p.status==="ghost"?"ghost":p.role==="host"?"host":p.role;
+    if(id===S.uid){ out.push({id,kind:"me",name:p.name}); continue; }
+    if(S.role==="host"){ out.push({id,kind:kindOf,name:p.name}); continue; }
+    if(p.role==="host") continue;
+    if(p.status==="ghost"){ if(S.role==="hunter"||S.status==="ghost") out.push({id,kind:"ghost",name:p.name}); continue; }
+    if(S.status==="ghost"){ out.push({id,kind:kindOf,name:p.name}); continue; }
+    if(S.role==="hunter"){
+      if(p.role==="hunter") out.push({id,kind:"hunter",name:p.name});
+      else{ if(fullTrackActive()&&S.live[id]) out.push({id,kind:"runner",name:p.name,live:true});
+        else if(S.pings[id]) out.push({id,kind:"ping",name:p.name,ping:true}); }
+      continue; }
+    if(S.role==="runner"&&S.status==="active"&&p.role==="runner"&&S.live[id]) out.push({id,kind:"runner",name:p.name});
+  }
+  return out;
+}
+function positionFor(t){
+  if(t.kind==="me") return posOfMe();
+  if(t.ping) return S.pings[t.id];
+  if(t.live) return S.live[t.id];
+  return S.live[t.id];
+}
+function renderMapAll(){
+  if(!MAP||!S.code) return;
+  const me=posOfMe();
+  if(me){ if(!myMarker) myMarker=L.marker([me.lat,me.lng],{icon:mkIcon({kind:"me"})}).addTo(MAP);
+    else myMarker.setLatLng([me.lat,me.lng]); }
+  if(S.meta&&S.meta.spawn){ const sp=S.meta.spawn;
+    if(!spawnMk) spawnMk=L.marker([sp.lat,sp.lng],{icon:mkIcon({kind:"spawn"})}).addTo(MAP);
+    else spawnMk.setLatLng([sp.lat,sp.lng]); }
+  const b=boundaryFor();
+  if(b){ const ll=[b.lat,b.lng];
+    if(!boundCk) boundCk=L.circle(ll,{radius:b.radius,color:"#4da3ff",weight:2,dashArray:"6 6",fillOpacity:.05}).addTo(MAP);
+    else{ boundCk.setLatLng(ll); boundCk.setRadius(b.radius); }
+    boundCk.setStyle({color:b.grace?"#ffb020":"#4da3ff"});
+  } else if(boundCk){ MAP.removeLayer(boundCk); boundCk=null; }
+  const want={};
+  for(const t of visiblePlayers()){ const pos=positionFor(t); if(!pos) continue;
+    const key=t.id+"|"+(t.ping?"p":"l"); want[key]=true;
+    const mk={id:t.id,kind:t.kind,name:t.name};
+    if(!dynMarkers[key]) dynMarkers[key]=L.marker([pos.lat,pos.lng],{icon:mkIcon(mk)}).addTo(MAP);
+    else{ dynMarkers[key].setLatLng([pos.lat,pos.lng]); dynMarkers[key].setIcon(mkIcon(mk)); }
+    dynMarkers[key].bindPopup(popupHtml(mk,pos)); }
+  for(const k in dynMarkers){ if(!want[k]){ MAP.removeLayer(dynMarkers[k]); delete dynMarkers[k]; } }
+  const ph=S.events&&S.events.photo;
+  if(ph&&ph.pin){ if(!photoMk) photoMk=L.marker([ph.pin.lat,ph.pin.lng],{icon:mkIcon({kind:"spawn"})}).addTo(MAP);
+    else photoMk.setLatLng([ph.pin.lat,ph.pin.lng]); }
+  else if(photoMk){ MAP.removeLayer(photoMk); photoMk=null; }
+}
+function onMapClick(e){
+  const ll={lat:e.latlng.lat,lng:e.latlng.lng}; const mode=S.tapMode; if(!mode) return; S.tapMode=null;
+  if(mode==="spawn"){ S.b.set(P()+"/meta/spawn",ll); toast("Spawn set"); }
+  else if(mode==="boundary"){ const r=parseInt(($("setup-radius")||{}).value,10)||400;
+    S.b.update(P()+"/meta",{boundary:{center:ll,radius:r}}); toast("Boundary set"); }
+  else if(mode==="evBoundary"){ S.evCenter=ll;
+    if(evPreview){MAP.removeLayer(evPreview);} evPreview=L.circle([ll.lat,ll.lng],{radius:S.evRadius,color:"#ffb020",dashArray:"4 6",fillOpacity:.04}).addTo(MAP);
+    const v=$("ev-bound-val"); if(v)v.textContent="center picked ✓";
+    const btn=$("ev-bound-broadcast"); if(btn)btn.disabled=false;
+    toast("New boundary center picked — broadcast when ready"); }
+  else if(mode==="photoPin"){ S.photoPin=ll; const v=$("photo-pin-val"); if(v)v.textContent="pinned ✓"; toast("Photo place pinned"); }
+}
+
+/* ------- geolocation ------- */
+function startGeo(){
+  if(S.mode==="test"||watchId!==null||!navigator.geolocation) return;
+  watchId=navigator.geolocation.watchPosition(p=>{
+    onFix({lat:p.coords.latitude,lng:p.coords.longitude,acc:p.coords.accuracy,ts:Date.now()});
+  },err=>toast("GPS error: "+err.message),{enableHighAccuracy:true,maximumAge:2000,timeout:10000});
+}
+function onFix(f){
+  if(!S.code) return; S.lastFix=f; const now=Date.now();
+  if(now-S.lastLiveWrite>4000){ S.lastLiveWrite=now; S.b.set(P()+"/live/"+S.uid,{lat:f.lat,lng:f.lng,ts:now}); }
+  if(S.role==="runner"&&S.status==="active"&&fullTrackActive()&&now-S.lastPingWrite>5000){
+    S.lastPingWrite=now; S.b.set(P()+"/pings/"+S.uid,{lat:f.lat,lng:f.lng,ts:now}); }
+  renderMapAll();
+}
+function writeLiveNow(){ if(S.lastFix) S.b.set(P()+"/live/"+S.uid,{lat:S.lastFix.lat,lng:S.lastFix.lng,ts:Date.now()}); }
+function writePing(){
+  if(S.meta&&S.meta.status==="running"&&S.role==="runner"&&S.status==="active"&&S.lastFix)
+    S.b.set(P()+"/pings/"+S.uid,{lat:S.lastFix.lat,lng:S.lastFix.lng,ts:Date.now()});
+}
+
+/* ------- boundaries & elimination ------- */
+function boundaryFor(){
+  const ev=S.events&&S.events.boundaryChange;
+  if(ev&&!ev.closed&&Date.now()<ev.deadline)
+    return {lat:ev.center.lat,lng:ev.center.lng,radius:ev.radius,grace:true,deadline:ev.deadline};
+  if(S.meta&&S.meta.boundary&&S.meta.boundary.center)
+    return {lat:S.meta.boundary.center.lat,lng:S.meta.boundary.center.lng,radius:S.meta.boundary.radius,grace:false};
+  return null;
+}
+function eliminate(id,reason,extra){
+  const p=S.players[id]; if(!p||p.status==="ghost") return;
+  const upd=Object.assign({status:"ghost",ghostReason:reason||"",ghostAt:Date.now(),arrived:false},extra||{});
+  S.b.update(P()+"/players/"+id,upd);
+  sysChat((p.name||"Player")+" was eliminated — "+(reason||"tagged"));
+}
+function sysChat(text){ if(!S.code) return; S.b.push(P()+"/chat/global",{uid:"sys",name:"SYSTEM",role:"sys",text,ts:Date.now()}); }
+async function finalize(winner,reason){
+  if(!S.meta||S.meta.status!=="running") return;
+  await S.b.update(P()+"/meta",{status:"ended"});
+  await S.b.set(P()+"/result",{winner,reason,endedAt:Date.now()});
+}
+
+/* ------- tick (1s heartbeat) ------- */
+function tick(){
+  const now=Date.now();
+  if(S.meta){
+    const t=$("tb-timer");
+    if(S.meta.status==="running"&&S.meta.endsAt) t.textContent="⏳ "+fmtMMSS(Math.max(0,S.meta.endsAt-now));
+    else t.textContent=S.meta.status==="lobby"?"🚏 Lobby":"—";
+  }
+  boundarySelfTick(now);
+  if(S.role==="ghost") ghostTick(now);
+  if(S.role==="host") hostTick(now);
+  updateLiveBits(now);
+  if(S.role==="hunter") renderPingList();
+}
+function boundarySelfTick(now){
+  const el=$("tb-bound"); if(!el) return;
+  const b=boundaryFor();
+  if(!b||!S.lastFix){ el.textContent=""; el.style.color=""; S.outsideSince=0; return; }
+  const d=distM(S.lastFix,b);
+  if(d<=b.radius){ S.outsideSince=0; el.textContent="✅ In bounds"; el.style.color="#37d67a"; return; }
+  if(!S.outsideSince) S.outsideSince=now;
+  el.style.color="#ff4d4f"; vibrate(60);
+  if(b.grace){ el.textContent="⚠️ OUT OF NEW BOUNDS — "+fmtMMSS(Math.max(0,b.deadline-now))+" to get inside";
+    if(S.role==="runner"&&S.status==="active"&&now>=b.deadline) eliminate(S.uid,"Outside new boundary after grace");
+  }else{ el.textContent="⚠️ OUT OF BOUNDS — "+fmtMMSS(Math.max(0,OUTSIDE_LIMIT_MS-(now-S.outsideSince)));
+    if(S.role==="runner"&&S.status==="active"&&now-S.outsideSince>=OUTSIDE_LIMIT_MS) eliminate(S.uid,"Stayed outside boundary over 1 min"); }
+}
+function ghostTick(now){
+  if(!S.meta||!S.meta.spawn||!S.lastFix||S.arrived) return;
+  const d=distM(S.lastFix,S.meta.spawn);
+  if(d<=SPAWN_ARRIVE_M){ S.arrived=true; S.b.update(P()+"/players/"+S.uid,{arrived:true});
+    toast("🏁 Back at spawn — you can spectate everyone now"); vibrate([80,60,80]); }
+}
+function hostTick(now){
+  if(!S.meta||S.meta.status!=="running") return;
+  const mb=S.meta.boundary;
+  if(mb&&mb.center){
+    for(const id in S.players){ const p=S.players[id];
+      if(p.role!=="runner"||p.status!=="active") continue;
+      const pos=S.live[id];
+      if(!pos||now-pos.ts>90000){ outSince[id]=0; continue; }
+      if(distM(pos,mb)>mb.radius){
+        if(!outSince[id]) outSince[id]=now;
+        else if(now-outSince[id]>=OUTSIDE_LIMIT_MS) eliminate(id,"Stayed outside boundary over 1 min");
+      } else outSince[id]=0;
+    }
+  }
+  const ev=S.events&&S.events.boundaryChange;
+  if(ev&&!ev.closed&&now>=ev.deadline){
+    S.b.set(P()+"/events/boundaryChange/closed",true);
+    S.b.update(P()+"/meta",{boundary:{center:ev.center,radius:ev.radius}});
+    for(const k in outSince) outSince[k]=0;
+    for(const id in S.players){ const p=S.players[id];
+      if(p.role!=="runner"||p.status!=="active") continue;
+      const pos=S.live[id];
+      if(pos&&distM(pos,ev.center)>ev.radius) eliminate(id,"Outside new boundary after grace"); }
+    sysChat("New boundary is now in effect.");
+  }
+  const ph=S.events&&S.events.photo;
+  if(ph&&!ph.closed&&now>=ph.deadline){
+    S.b.set(P()+"/events/photo/closed",true);
+    for(const id in S.players){ const p=S.players[id];
+      if(p.role!=="runner"||p.status!=="active") continue;
+      const sub=S.photos[id];
+      if(!sub||sub.status!=="approved") eliminate(id,"Failed the photo challenge"); }
+    sysChat("Photo challenge ended.");
+  }
+  const runners=Object.values(S.players).filter(p=>p.role==="runner");
+  if(runners.length>0&&runners.every(p=>p.status==="ghost")) finalize("hunters","All runners were tagged");
+  else if(S.meta.endsAt&&now>=S.meta.endsAt) finalize(runners.some(p=>p.status==="active")?"runners":"hunters","Time expired");
+}
+function updateLiveBits(now){
+  const set=(k,v)=>document.querySelectorAll('[data-live="'+k+'"]').forEach(e=>e.textContent=v);
+  const ev=S.events&&S.events.boundaryChange;
+  if(ev&&!ev.closed&&now<ev.deadline) set("ev-deadline",fmtMMSS(ev.deadline-now));
+  const ph=S.events&&S.events.photo;
+  if(ph&&!ph.closed&&now<ph.deadline) set("photo-deadline",fmtMMSS(ph.deadline-now));
+  const ft=S.events&&S.events.fullTrack;
+  if(ft&&now<ft.until) set("ft-until",fmtMMSS(ft.until-now));
+  if(S.role==="ghost"&&!S.arrived&&S.meta&&S.meta.spawn&&S.lastFix)
+    set("ghost-dist",Math.round(distM(S.lastFix,S.meta.spawn))+" m");
+}
+
+/* ------- subscriptions ------- */
+function unsubAll(){ S.unsub.forEach(u=>{try{u();}catch(e){}}); S.unsub=[];
+  if(S.chatUnsub){try{S.chatUnsub();}catch(e){} S.chatUnsub=null; } }
+function subscribeAll(){
+  unsubAll(); const U=S.unsub;
+  U.push(S.b.onValue(P()+"/meta",m=>{
+    if(S.mode!=="test"&&m===null){ toast("Game closed by host"); return leave(); }
+    S.meta=m; if(!m) return;
+    const st=m.status;
+    if(st!==S.lastMetaStatus){ const prev=S.lastMetaStatus; S.lastMetaStatus=st; onMetaTransition(prev,st); }
+    renderTopbar(); renderSetupIfHost(); renderMapAll();
+  }));
+  U.push(S.b.onValue(P()+"/players",ps=>{
+    S.players=ps||{}; const me=S.players[S.uid];
+    if(me){
+      const becameGhost=me.status==="ghost"&&S.status!=="ghost";
+      S.role=me.role||S.role; S.status=me.status||null; S.arrived=!!me.arrived;
+      if(becameGhost&&inGame()){ toast("👻 You were tagged! Return to spawn IMMEDIATELY"); vibrate([120,80,120]); openTab("role"); }
+      renderTopbar(); renderPlayersList(); renderRolePanel();
+    }
+    renderSetupIfHost(); renderMapAll();
+  }));
+  U.push(S.b.onValue(P()+"/live",l=>{ S.live=l||{}; renderMapAll(); }));
+  U.push(S.b.onValue(P()+"/pings",p=>{ S.pings=p||{}; renderMapAll(); renderPingList(); }));
+  U.push(S.b.onValue(P()+"/events",e=>{
+    const prevPh=S.events&&S.events.photo; S.events=e||{};
+    const ph=S.events.photo;
+    if(ph&&(!prevPh||prevPh.deadline!==ph.deadline)&&S.role==="runner"&&S.status==="active"&&!ph.closed){
+      toast("📸 NEW PHOTO CHALLENGE!"); vibrate([80,60,80]); openTab("role"); }
+    renderBanner(); renderMapAll(); renderRolePanel(true);
+  }));
+  U.push(S.b.onValue(P()+"/photos",ph=>{ S.photos=ph||{}; renderRolePanel(true); }));
+  U.push(S.b.onValue(P()+"/result",r=>{ S.result=r; if(r&&S.meta&&S.meta.status==="ended") showResult(r); }));
+}
+function onMetaTransition(prev,st){
+  if(st==="running") enterGame();
+  if(st==="ended"){ stopGameTimers(); if(S.result) showResult(S.result); }
+}
+
+/* ------- flows: host / join / rules ------- */
+function attemptJoin(code){
+  const name=($("inp-name").value||"").trim();
+  if(!name){ toast("Enter your name first"); return; }
+  if(!code){ toast("Enter a code"); return; }
+  code=code.trim().toUpperCase();
+  S.pending={name,kind:code===HOST_CODE?"host":"join",code};
+  $("screen-home").classList.add("hidden");
+  $("screen-rules").classList.remove("hidden");
+  $("chk-agree").checked=false; $("btn-agree").disabled=true;
+}
+async function doHost(name){
+  const b=await makeLiveBackend(); if(!b) return;
+  let code=null;
+  for(let i=0;i<6;i++){ const c=randCode(4); const ex=await b.get("games/"+c+"/meta"); if(!ex){code=c;break;} }
+  if(!code){ toast("Could not create a game code"); return; }
+  S.mode="live"; S.b=b; S.uid=b.uid; S.code=code; S.name=name; S.role="host"; S.status="admin";
+  await b.set("games/"+code+"/meta",{hostId:S.uid,hostName:name,status:"lobby",createdAt:Date.now(),timeLimitMin:60});
+  await b.set("games/"+code+"/players/"+S.uid,{name,role:"host",status:"admin",agreed:true,joinedAt:Date.now()});
+  saveSession(); subscribeAll(); enterLobbyHost();
+}
+async function doJoin(code,name){
+  const b=await makeLiveBackend(); if(!b) return;
+  const meta=await b.get("games/"+code+"/meta");
+  if(!meta){ toast("Game not found: "+code); return; }
+  if(meta.status==="ended"){ toast("That game already ended"); return; }
+  S.mode="live"; S.b=b; S.uid=b.uid; S.code=code; S.name=name;
+  const pl={name,role:"pending",status:"waiting",agreed:true,joinedAt:Date.now()};
+  if(meta.status==="running"){ pl.role="runner"; pl.status="active"; }
+  await b.set("games/"+code+"/players/"+b.uid,pl);
+  saveSession(); subscribeAll();
+  $("screen-rules").classList.add("hidden"); $("screen-home").classList.add("hidden");
+  $("topbar").classList.remove("hidden");
+  $("lobby-code").textContent=code;
+  $("screen-lobby").classList.remove("hidden");
+  startGeo();
+}
+function enterLobbyHost(){
+  $("screen-rules").classList.add("hidden"); $("screen-home").classList.add("hidden");
+  $("topbar").classList.remove("hidden");
+  $("setup-code").textContent=S.code;
+  $("panel-setup").classList.remove("hidden");
+  startGeo(); renderSetupIfHost();
+  if(window.QRCode&&$("qr-join"))
+    QRCode.toCanvas($("qr-join"),JSON.stringify({t:"bmh",c:S.code}),{width:200,margin:1}).catch(()=>{});
+}
+function renderSetupIfHost(){
+  if(S.role!=="host"||!S.meta||S.meta.status!=="lobby") return;
+  const sp=$("setup-spawn-val"), bo=$("setup-bound-val"), st=$("btn-start");
+  if(sp) sp.textContent=S.meta.spawn?("set ✓ ("+S.meta.spawn.lat.toFixed(5)+", "+S.meta.spawn.lng.toFixed(5)+")"):"not set";
+  if(bo) bo.textContent=S.meta.boundary?("set ✓ (radius "+S.meta.boundary.radius+" m)"):"not set";
+  if(st){ const n=Object.keys(S.players).filter(id=>id!==S.uid).length;
+    st.disabled=!(S.meta.spawn&&S.meta.boundary&&n>=3); }
+}
+function hostStartGame(){
+  const ids=Object.keys(S.players).filter(id=>id!==S.uid);
+  if(ids.length<3){ toast("Need at least 3 players (2 hunters + 1 runner)"); return; }
+  if(!S.meta.spawn){ toast("Set spawn first"); return; }
+  if(!S.meta.boundary){ toast("Set the boundary first"); return; }
+  const mins=parseInt(($("setup-tlimit")||{}).value,10)||60;
+  const sh=shuffle(ids); const hunters=sh.slice(0,2);
+  const upd={};
+  ids.forEach(id=>{ upd[id+"/role"]=hunters.includes(id)?"hunter":"runner";
+    upd[id+"/status"]="active"; upd[id+"/arrived"]=false; });
+  S.b.update(P()+"/players",upd);
+  S.b.update(P()+"/meta",{status:"running",startedAt:Date.now(),endsAt:Date.now()+mins*60000,timeLimitMin:mins});
+  sysChat("Game started! Hunters: "+hunters.map(id=>(S.players[id]||{}).name).join(", ")+". Run, runners!");
+}
+
+/* ------- game lifecycle ------- */
+function enterGame(){
+  $("screen-lobby").classList.add("hidden"); $("panel-setup").classList.add("hidden");
+  $("topbar").classList.remove("hidden"); $("tabs").classList.remove("hidden");
+  startGeo(); startGameTimers(); writeLiveNow(); writePing();
+  S.chatTab=(S.role==="runner")?"runners":(S.role==="hunter")?"hunters":"global";
+  openChat(S.chatTab); openTab("role"); requestWake();
+  toast("Game on! 🏃");
+}
+function startGameTimers(){
+  stopGameTimers();
+  tickI=setInterval(tick,1000); pingI=setInterval(writePing,PING_MS);
+}
+function stopGameTimers(){
+  if(tickI){clearInterval(tickI);tickI=null;}
+  if(pingI){clearInterval(pingI);pingI=null;}
+}
+async function requestWake(){ try{ if("wakeLock" in navigator){ wakeLock=await navigator.wakeLock.request("screen"); } }catch(e){} }
+function showResult(r){
+  if(S.resultShown) return; S.resultShown=true;
+  stopGameTimers();
+  $("topbar").classList.add("hidden"); $("tabs").classList.add("hidden");
+  ["panel-setup","panel-chat","panel-role"].forEach(id=>$(id).classList.add("hidden"));
+  $("banner").classList.add("hidden");
+  $("result-title").textContent=r.winner==="runners"?"🟩 RUNNERS WIN!":"🔴 HUNTERS WIN!";
+  $("result-title").style.color=r.winner==="runners"?"#37d67a":"#ff4d4f";
+  $("result-sub").textContent=r.reason||"";
+  $("result-players").innerHTML=Object.values(S.players).map(p=>
+    "<li><span>"+roleEmoji(p)+" "+esc(p.name||"Player")+"</span><span class='muted'>"+esc(roleLabel(p))+"</span></li>").join("");
+  $("screen-result").classList.remove("hidden");
+}
+function leave(){
+  unsubAll(); stopGameTimers();
+  if(botI){clearInterval(botI);botI=null;} if(simI){clearInterval(simI);simI=null;}
+  if(watchId!==null&&navigator.geolocation){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+  clearSession(); location.reload();
+}
+
+/* ------- tabs & panels ------- */
+function openTab(name){
+  ["panel-chat","panel-role"].forEach(id=>$(id).classList.add("hidden"));
+  document.querySelectorAll(".tabbtn").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));
+  if(name==="chat"){ $("panel-chat").classList.remove("hidden"); openChat(S.chatTab||defaultChatTab()); }
+  if(name==="role"){ $("panel-role").classList.remove("hidden"); renderRolePanel(true); }
+  if(name==="map"){ setTimeout(()=>{MAP&&MAP.invalidateSize();},80); }
+}
+function defaultChatTab(){ return S.role==="runner"?"runners":S.role==="hunter"?"hunters":"global"; }
+function chatTabsFor(role){
+  if(role==="hunter") return [["hunters","🟥 Hunters"],["global","🌍 Everyone"]];
+  if(role==="runner") return [["runners","🟩 Runners"],["global","🌍 Everyone"]];
+  return [["hunters","🟥 Hunters"],["runners","🟩 Runners"],["global","🌍 Everyone"]];
+}
+function canSend(tab){
+  if(S.role==="host") return true;
+  if(S.role==="ghost") return tab==="global";
+  return tab==="global"||tab===defaultChatTab();
+}
+function chatPath(tab){ return tab==="global"?P()+"/chat/global":P()+"/chat/team/"+tab; }
+function openChat(tab){
+  S.chatTab=tab; renderChatTabs();
+  if(S.chatUnsub){try{S.chatUnsub();}catch(e){}}
+  S.chatUnsub=S.b.onValue(chatPath(tab),renderChat);
+  const inp=$("chat-text");
+  if(!canSend(tab)){ inp.disabled=true; inp.placeholder="Read-only channel"; }
+  else{ inp.disabled=false; inp.placeholder="Message…"; }
+}
+function renderChatTabs(){
+  $("chat-tabs").innerHTML=chatTabsFor(S.role).map(([k,l])=>
+    '<button class="btn '+(k===S.chatTab?"primary":"ghostbtn")+'" data-act="chat-tab" data-tab="'+k+'">'+l+"</button>").join("");
+}
+function renderChat(msgs){
+  const arr=Object.values(msgs||{}).filter(Boolean).sort((a,b)=>a.ts-b.ts).slice(-100);
+  $("chat-list").innerHTML=arr.map(m=>{
+    const mine=m.uid===S.uid;
+    if(m.role==="sys") return '<div class="msg sys">'+esc(m.text)+"</div>";
+    return '<div class="msg '+(mine?"me":"")+'"><b>'+(m.role==="hunter"?"🔴 ":m.role==="runner"?"🟩 ":m.role==="host"?"★ ":"")+esc(m.name)+" · "+new Date(m.ts).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})+"</b>"+esc(m.text)+"</div>";
+  }).join("")||'<div class="muted" style="padding:10px">No messages yet.</div>';
+  const cl=$("chat-list"); cl.scrollTop=cl.scrollHeight;
+}
+function sendChat(){
+  const t=($("chat-text").value||"").trim(); if(!t) return;
+  if(!canSend(S.chatTab)){ toast("You can only write in Everyone"); return; }
+  S.b.push(chatPath(S.chatTab),{uid:S.uid,name:S.name,role:S.role==="host"?"host":S.status==="ghost"?"ghost":S.role,text:t,ts:Date.now()});
+  $("chat-text").value="";
+}
+
+/* ------- role panel ------- */
+let lastRoleKey="";
+function roleKey(){
+  const e=S.events||{};
+  const evA=e.boundaryChange&&!e.boundaryChange.closed&&Date.now()<e.boundaryChange.deadline;
+  const phA=e.photo&&!e.photo.closed&&Date.now()<e.photo.deadline;
+  const ftA=e.fullTrack&&Date.now()<e.fullTrack.until;
+  return [S.mode,S.role,S.status,S.arrived,!!evA,!!phA,!!ftA,
+    Object.values(S.photos||{}).map(p=>p&&p.status).join(","),S.simOutside?1:0].join("|");
+}
+function renderRolePanel(force){
+  if(!S.code||!inGame()) return;
+  const k=roleKey(); if(!force&&k===lastRoleKey) return; lastRoleKey=k;
+  let html="";
+  if(S.role==="host") html=hostPanel();
+  else if(S.status==="ghost"||S.role==="ghost") html=ghostPanel();
+  else if(S.role==="hunter") html=hunterPanel();
+  else if(S.role==="runner") html=runnerPanel();
+  else html='<div class="card"><p>Waiting for the host…</p></div>';
+  $("role-content").innerHTML=html;
+  const c=$("qr-tag");
+  if(c&&window.QRCode&&S.role==="runner"&&S.status==="active")
+    QRCode.toCanvas(c,JSON.stringify({t:"bmhtag",c:S.code,p:S.uid}),{width:200,margin:1}).catch(()=>{});
+  renderPingList(); renderPlayersList();
+}
+function testControls(){
+  if(S.mode!=="test") return "";
+  return '<div class="card testbox"><b>🧪 TEST CONTROLS</b>'+
+    '<div class="row wrap">'+["host","hunter","runner","ghost"].map(r=>
+      '<button class="btn ghostbtn" data-act="test-role" data-role="'+r+'">Be '+r+"</button>").join("")+"</div>"+
+    '<div class="row wrap"><button class="btn ghostbtn" data-act="test-tagged">Sim: I get tagged</button>'+
+    '<button class="btn ghostbtn" data-act="test-tag-runner">Sim: tag a runner</button>'+
+    '<button class="btn ghostbtn" data-act="test-teleport">'+(S.simOutside?"Stop teleport":"Teleport outside boundary")+"</button>"+
+    '<button class="btn ghostbtn" data-act="test-arrive">Sim: arrive at spawn</button>'+
+    '<button class="btn ghostbtn" data-act="test-end">Force end (runners win)</button></div></div>';
+}
+function runnerPanel(){
+  const ph=S.events&&S.events.photo; const active=ph&&!ph.closed&&Date.now()<ph.deadline;
+  const mine=(S.photos||{})[S.uid]; const st=mine?mine.status:"none";
+  let photoHtml="";
+  if(active){
+    photoHtml='<div class="card"><b>📸 Photo Challenge</b><p>'+esc(ph.text)+"</p>"+
+      '<p class="muted">Punishment: '+esc(ph.punishment||"Elimination")+' · Time left: <b data-live="photo-deadline">'+
+      fmtMMSS(ph.deadline-Date.now())+"</b></p>"+
+      (st==="none"
+        ?'<input type="file" id="photo-file" accept="image/*" capture="environment"/>'+
+         '<img id="photo-preview" class="photoprev hidden"/>'+
+         '<button class="btn primary" data-act="photo-submit" id="photo-submit" disabled>Submit photo</button>'
+        :"<p>Your photo: <b>"+st+"</b>"+(st==="approved"?" ✅":st==="pending"?" — waiting for host review ⏳":"")+"</p>")+"</div>";
+  }
+  return '<div class="card rolecard"><span class="rolebadge runner">🏃 RUNNER</span>'+
+    '<p>Stay hidden. If a hunter scans your QR, you become a ghost.</p></div>'+
+    '<div class="card"><b>Your tag QR</b><canvas id="qr-tag"></canvas><p class="muted">Hunters scan this when they tag you — everyone will be told.</p></div>'+
+    photoHtml+testControls();
+}
+function hunterPanel(){
+  const ft=fullTrackActive();
+  return '<div class="card rolecard"><span class="rolebadge hunter">🔴 HUNTER</span>'+
+    '<p>Runners ping their location once a minute'+(ft?"":" — watch the map for orange last-seen markers.")+"</p>"+
+    (ft?'<p class="warnbox">🎯 FULL TRACKING active — <b data-live="ft-until">'+fmtMMSS((S.events.fullTrack.until-Date.now()))+"</b></p>":"")+
+    '<button class="btn primary big" data-act="scan-open">📷 Scan Runner QR to Tag</button></div>'+
+    '<div class="card"><b>Runner pings</b><ul id="ping-list" class="plist"></ul></div>'+testControls();
+}
+function ghostPanel(){
+  return '<div class="card rolecard"><span class="rolebadge ghost">👻 GHOST</span>'+
+    (S.arrived
+      ?"<p>You're back at spawn. You can spectate <b>everyone's</b> location on the map.</p>"
+      :"<p><b>Return to spawn immediately!</b></p><p>Distance: <b data-live=\"ghost-dist\">—</b></p>")+
+    '<p class="muted">You can only write in the Everyone chat.</p></div>'+testControls();
+}
+function hostPhotosHtml(){
+  const entries=Object.entries(S.photos||{});
+  if(!entries.length) return '<div class="card"><b>📸 Submissions</b><p class="muted">No photos yet.</p></div>';
+  return '<div class="card"><b>📸 Submissions</b>'+entries.map(([id,p])=>
+    '<div class="phrow">'+(p.b64?'<img src="'+p.b64+'"/>':"")+"<div><b>"+esc(p.name||id)+
+    "</b><div class='muted'>"+new Date(p.ts).toLocaleTimeString()+" · "+esc(p.status)+"</div>"+
+    (p.status==="pending"
+      ?'<div class="row"><button class="btn primary" data-act="photo-approve" data-id="'+id+'">Approve</button>'+
+       '<button class="btn danger" data-act="photo-reject" data-id="'+id+'">Reject (eliminate)</button></div>':"")+
+    "</div></div>").join("")+"</div>";
+}
+function hostPanel(){
+  const e=S.events||{};
+  const evA=e.boundaryChange&&!e.boundaryChange.closed&&Date.now()<e.boundaryChange.deadline;
+  const phA=e.photo&&!e.photo.closed&&Date.now()<e.photo.deadline;
+  const ftA=e.fullTrack&&Date.now()<e.fullTrack.until;
+  return '<div class="card rolecard"><span class="rolebadge host">★ HOST / ADMIN</span>'+
+    "<p>You can always see everyone. Broadcast events below.</p></div>"+
+    '<div class="card"><b>⚠️ Boundary change</b>'+
+    (evA?'<p class="warnbox">Active! Runners have <b data-live="ev-deadline">'+fmtMMSS(e.boundaryChange.deadline-Date.now())+"</b> to get inside.</p>"
+      :'<button class="btn ghostbtn" data-act="ev-bound-pick">Pick new center on map</button>'+
+       '<div class="muted" id="ev-bound-val">'+(S.evCenter?"center picked ✓":"no center picked")+"</div>"+
+       "<div><label>Radius: <span id='ev-radius-lab'>"+S.evRadius+"</span> m</label></div>"+
+       '<input type="range" id="ev-radius" min="100" max="2000" step="50" value="'+S.evRadius+'" style="width:100%"/>'+
+       '<button class="btn primary" data-act="ev-bound-broadcast" id="ev-bound-broadcast" '+(S.evCenter?"":"disabled")+">Broadcast (5 min grace — hunters exempt)</button>")+
+    "</div>"+
+    '<div class="card"><b>📸 Photo challenge</b>'+
+    (phA?'<p class="warnbox">Active: '+esc(e.photo.text)+' — <b data-live="photo-deadline">'+fmtMMSS(e.photo.deadline-Date.now())+"</b></p>"
+      :'<input id="photo-text" placeholder="e.g. Photo of the fountain on Elm St"/>'+
+       '<div class="row wrap"><label>Minutes: <input type="number" id="photo-mins" value="10" min="1" max="60" style="width:70px"/></label>'+
+       '<button class="btn ghostbtn" data-act="ev-photo-pin">Pin place on map (optional)</button>'+
+       '<span class="muted" id="photo-pin-val">'+(S.photoPin?"pinned ✓":"")+"</span></div>"+
+       '<button class="btn primary" data-act="ev-photo-broadcast">Broadcast challenge</button>')+
+    "</div>"+hostPhotosHtml()+
+    '<div class="card"><b>🎯 Hunter boost</b>'+
+    (ftA?'<p class="warnbox">FULL TRACKING — <b data-live="ft-until">'+fmtMMSS(e.fullTrack.until-Date.now())+"</b></p>"
+      :'<div class="row wrap"><label>Minutes: <input type="number" id="ft-mins" value="2" min="1" max="30" style="width:70px"/></label>'+
+       '<button class="btn primary" data-act="ft-activate">Give hunters full tracking</button></div>')+
+    "</div>"+
+    '<div class="card"><b>Admin</b><ul id="admin-players" class="plist"></ul>'+
+    '<button class="btn danger" data-act="host-end">End game now</button></div>'+testControls();
+}
+function roleEmoji(p){ return p.status==="ghost"?"👻":p.role==="host"?"★":p.role==="hunter"?"🔴":p.role==="runner"?"🏃":"❓"; }
+function roleLabel(p){ return p.status==="ghost"?"ghost":p.role||"waiting"; }
+function renderPlayersList(){
+  const html=Object.entries(S.players).map(([id,p])=>
+    "<li class='"+(id===S.uid?"me":"")+"'><span>"+roleEmoji(p)+" "+esc(p.name||"Player")+
+    "</span><span class='muted'>"+esc(roleLabel(p))+(p.agreed?" ✓":"")+"</span></li>").join("");
+  ["lobby-players","setup-players","admin-players"].forEach(id=>{ const el=$(id); if(el) el.innerHTML=html; });
+}
+function renderPingList(){
+  const el=$("ping-list"); if(!el) return; const now=Date.now();
+  const rows=Object.keys(S.players).filter(id=>S.players[id].role==="runner").map(id=>{
+    const p=S.players[id]; const pg=S.pings[id];
+    const age=pg?Math.round((now-pg.ts)/1000):null;
+    return "<li><span>"+(p.status==="ghost"?"👻":pg?"🟠":"❔")+" "+esc(p.name)+"</span><span class='muted'>"+
+      (p.status==="ghost"?"out":pg==null?"no ping":age+"s ago")+"</span></li>";
+  });
+  el.innerHTML=rows.join("")||"<li class='muted'>No runners</li>";
+}
+function renderBanner(){
+  const el=$("banner"); const now=Date.now(); const parts=[];
+  const ev=S.events&&S.events.boundaryChange;
+  if(ev&&!ev.closed&&now<ev.deadline)
+    parts.push('⚠️ NEW BOUNDARY — get inside: <b data-live="ev-deadline">'+fmtMMSS(ev.deadline-now)+"</b>");
+  const ph=S.events&&S.events.photo;
+  if(ph&&!ph.closed&&now<ph.deadline)
+    parts.push('📸 PHOTO: '+esc(ph.text)+' — <b data-live="photo-deadline">'+fmtMMSS(ph.deadline-now)+"</b>");
+  const ft=S.events&&S.events.fullTrack;
+  if(ft&&now<ft.until)
+    parts.push('🎯 Hunters have FULL tracking: <b data-live="ft-until">'+fmtMMSS(ft.until-now)+"</b>");
+  if(parts.length){ el.innerHTML=parts.join("<br/>"); el.classList.remove("hidden"); }
+  else el.classList.add("hidden");
+}
+function renderTopbar(){
+  if(!S.code) return;
+  $("tb-code").textContent="🎮 "+S.code;
+  const r=S.role==="host"?"HOST":(S.status==="ghost"||S.role==="ghost")?"GHOST":S.role==="hunter"?"HUNTER":S.role==="runner"?"RUNNER":"WAITING";
+  $("tb-role").textContent="👤 "+r;
+}
+
+/* ------- scanner ------- */
+async function openScanner(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ toast("Camera not supported here"); return; }
+  if(typeof jsQR==="undefined"){ toast("Scanner library failed to load"); return; }
+  $("modal-scan").classList.remove("hidden");
+  try{ scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}}); }
+  catch(e){ closeScanner(); toast("Camera permission denied"); return; }
+  const v=$("scan-video"); v.srcObject=scanStream; await v.play().catch(()=>{});
+  const c=$("scan-canvas"), ctx=c.getContext("2d",{willReadFrequently:true});
+  const loop=()=>{
+    if(v.readyState>=2&&v.videoWidth){
+      c.width=v.videoWidth; c.height=v.videoHeight; ctx.drawImage(v,0,0);
+      const img=ctx.getImageData(0,0,c.width,c.height);
+      const code=jsQR(img.data,c.width,c.height,{inversionAttempts:"dontInvert"});
+      if(code&&code.data){ closeScanner(); handleScan(code.data); return; }
+    }
+    scanRaf=requestAnimationFrame(loop);
+  };
+  scanRaf=requestAnimationFrame(loop);
+}
+function closeScanner(){
+  if(scanRaf){cancelAnimationFrame(scanRaf);scanRaf=null;}
+  if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;}
+  $("modal-scan").classList.add("hidden");
+}
+function handleScan(txt){
+  let o=null; try{o=JSON.parse(txt);}catch(e){}
+  if(o&&o.t==="bmh"&&typeof o.c==="string"){
+    if(S.code){ toast("Already in a game"); return; }
+    $("inp-code").value=o.c; attemptJoin(o.c); return;
+  }
+  if(o&&o.t==="bmhtag"&&o.c===S.code){
+    if(S.role!=="hunter"){ toast("Only hunters can tag"); return; }
+    const p=S.players[o.p];
+    if(!p){ toast("Unknown player"); return; }
+    if(p.status==="ghost"){ toast(p.name+" is already out"); return; }
+    confirmAsk("Tag "+p.name+"?",()=>{
+      eliminate(o.p,"Tagged by "+S.name,{taggedBy:S.uid}); vibrate([100,60,100]);
+    });
+    return;
+  }
+  if(/^[A-Z0-9]{4,6}$/.test(txt)){ if(!S.code){ $("inp-code").value=txt; attemptJoin(txt); } return; }
+  toast("QR not recognized");
+}
+function confirmAsk(text,cb){ $("confirm-text").textContent=text; S.confirmCb=cb; $("modal-confirm").classList.remove("hidden"); }
+
+/* ------- photos ------- */
+function fileToDataUrl(file,maxDim,quality){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader();
+    fr.onload=()=>{ const img=new Image();
+      img.onload=()=>{ let w=img.width,h=img.height; const sc=Math.min(1,maxDim/Math.max(w,h));
+        w=Math.round(w*sc); h=Math.round(h*sc);
+        const c=document.createElement("canvas"); c.width=w; c.height=h;
+        c.getContext("2d").drawImage(img,0,0,w,h);
+        res(c.toDataURL("image/jpeg",quality)); };
+      img.onerror=rej; img.src=fr.result; };
+    fr.onerror=rej; fr.readAsDataURL(file);
+  });
+}
+function grayPhoto(){
+  const c=document.createElement("canvas"); c.width=240; c.height=180;
+  const x=c.getContext("2d"); x.fillStyle="#666"; x.fillRect(0,0,240,180);
+  x.fillStyle="#fff"; x.font="20px sans-serif"; x.fillText("TEST PHOTO",60,95);
+  return c.toDataURL("image/jpeg",0.5);
+}
+
+/* ------- TEST MODE ------- */
+function startTestMode(){
+  resetLocal();
+  S.mode="test"; S.b=new LocalBackend(); S.uid="test-me"; S.code="TEST"; S.name="You"; S.role="host"; S.status="admin";
+  const c=TEST_CENTER;
+  S.b.set("games/TEST/meta",{hostId:S.uid,hostName:S.name,status:"lobby",createdAt:Date.now(),timeLimitMin:45,
+    boundary:{center:{lat:c.lat,lng:c.lng},radius:400},spawn:{lat:c.lat+0.0005,lng:c.lng+0.0005}});
+  S.b.set("games/TEST/players/test-me",{name:S.name,role:"host",status:"admin",agreed:true,joinedAt:Date.now()});
+  const bots=[["b1","Hunter One","hunter"],["b2","Hunter Two","hunter"],["r1","Runner Rae","runner"],
+    ["r2","Runner Roz","runner"],["r3","Runner Sid","runner"],["r4","Runner Tim","runner"]];
+  S.bots=bots.map(([id,nm,role],i)=>{
+    S.b.set("games/TEST/players/"+id,{name:nm,role,status:"active",agreed:true,joinedAt:Date.now()});
+    const a=Math.random()*6.28,r=60+Math.random()*220;
+    return {id,role,lat:c.lat+Math.cos(a)*r/111320,lng:c.lng+Math.sin(a)*r/(111320*0.78),wp:null};
+  });
+  subscribeAll(); enterLobbyHost();
+  simI=setInterval(()=>{ S.simT+=2; const cc=TEST_CENTER;
+    const r=S.simOutside?550:40+20*Math.sin(S.simT/9); const a=S.simT/6;
+    onFix({lat:cc.lat+Math.cos(a)*r/111320,lng:cc.lng+Math.sin(a)*r/(111320*0.78),ts:Date.now()});
+  },2000);
+  botI=setInterval(botTick,1500);
+  toast("🧪 Test mode — everything is simulated locally, no data leaves your phone");
+}
+function resetLocal(){
+  unsubAll(); stopGameTimers(); if(botI){clearInterval(botI);botI=null;} if(simI){clearInterval(simI);simI=null;}
+  Object.assign(S,{mode:null,code:null,uid:null,role:"pending",status:null,meta:null,players:{},live:{},pings:{},
+    events:{},photos:{},result:null,resultShown:false,lastMetaStatus:null,evCenter:null,photoPin:null,outsideSince:0,simOutside:false});
+}
+function botTick(){
+  if(S.mode!=="test"||!S.b) return; const now=Date.now();
+  for(const b of S.bots){
+    if(!b.wp||distM(b,b.wp)<20){ const a=Math.random()*6.28,r=80+Math.random()*250;
+      b.wp={lat:TEST_CENTER.lat+Math.cos(a)*r/111320,lng:TEST_CENTER.lng+Math.sin(a)*r/(111320*0.78)}; }
+    const f=0.12; b.lat+=(b.wp.lat-b.lat)*f; b.lng+=(b.wp.lng-b.lng)*f;
+    S.b.set("games/TEST/live/"+b.id,{lat:b.lat,lng:b.lng,ts:now});
+  }
+  if(S.meta&&S.meta.status==="running"){
+    if(now-(S.lastBotPing||0)>10000){ S.lastBotPing=now;
+      for(const b of S.bots){ if(b.role!=="runner") continue;
+        const p=S.players[b.id]; if(p&&p.status==="active")
+          S.b.set("games/TEST/pings/"+b.id,{lat:b.lat,lng:b.lng,ts:now}); } }
+    if(Math.random()<0.02){
+      const act=Object.keys(S.players).filter(id=>S.players[id].role==="runner"&&S.players[id].status==="active");
+      if(act.length>1) eliminate(act[Math.floor(Math.random()*act.length)],"Tagged by a hunter");
+    }
+    const ph=S.events&&S.events.photo;
+    if(ph&&!ph.closed){ for(const b of S.bots){ if(b.role!=="runner") continue;
+      if(!S.photos[b.id]&&Math.random()<0.08)
+        S.b.set("games/TEST/photos/"+b.id,{name:S.players[b.id].name,b64:grayPhoto(),ts:now,status:"pending"}); } }
+  }
+}
+function testSetRole(role){
+  const status=role==="host"?"admin":role==="ghost"?"ghost":"active";
+  S.b.set("games/TEST/players/test-me/role",role);
+  S.b.set("games/TEST/players/test-me/status",status);
+  toast("You are now: "+role); openTab("role");
+}
+
+/* ------- action router ------- */
+document.addEventListener("click",e=>{
+  const el=e.target.closest("[data-act]"); if(!el) return;
+  const act=el.dataset.act;
+  switch(act){
+    case "home-join": attemptJoin(($("inp-code").value||"").trim()); break;
+    case "home-scan": {
+      if(!($("inp-name").value||"").trim()){ toast("Enter your name first"); break; }
+      openScanner(); break; }
+    case "home-test": startTestMode(); break;
+    case "rules-back": $("screen-rules").classList.add("hidden"); $("screen-home").classList.remove("hidden"); break;
+    case "rules-continue":
+      if(!S.pending) break;
+      $("screen-rules").classList.add("hidden");
+      if(S.pending.kind==="host") doHost(S.pending.name); else doJoin(S.pending.code,S.pending.name);
+      break;
+    case "tab": openTab(el.dataset.tab); break;
+    case "chat-tab": openChat(el.dataset.tab); break;
+    case "chat-send": sendChat(); break;
+    case "leave": leave(); break;
+    case "host-spawn-here":
+      if(S.lastFix){ S.b.set(P()+"/meta/spawn",{lat:S.lastFix.lat,lng:S.lastFix.lng}); toast("Spawn set to your location"); }
+      else toast("No GPS fix yet — try again in a few seconds");
+      break;
+    case "host-pick-spawn": S.tapMode="spawn"; toast("Tap the map to place SPAWN"); break;
+    case "host-pick-bound": S.tapMode="boundary"; toast("Tap the map to place the boundary CENTER"); break;
+    case "host-start": hostStartGame(); break;
+    case "ev-bound-pick": S.tapMode="evBoundary"; toast("Tap the map for the NEW boundary center"); break;
+    case "ev-bound-broadcast": {
+      if(!S.evCenter){ toast("Pick a center first"); break; }
+      const r=parseInt(($("ev-radius")||{}).value,10)||300; S.evRadius=r;
+      S.b.set(P()+"/events/boundaryChange",{center:S.evCenter,radius:r,deadline:Date.now()+BOUNDARY_EVENT_MS,closed:false});
+      sysChat("⚠️ BOUNDARY CHANGE — you have 5 minutes to get inside the new boundary!");
+      if(evPreview){MAP.removeLayer(evPreview);evPreview=null;}
+      S.evCenter=null; toast("Boundary change broadcast"); renderRolePanel(true); break; }
+    case "ev-photo-pin": S.tapMode="photoPin"; toast("Tap the map to pin the photo place"); break;
+    case "ev-photo-broadcast": {
+      const txt=($("photo-text")||{}).value||"";
+      if(!txt.trim()){ toast("Describe what to photograph"); break; }
+      const mins=parseInt(($("photo-mins")||{}).value,10)||10;
+      S.b.set(P()+"/events/photo",{text:txt.trim(),deadline:Date.now()+mins*60000,pin:S.photoPin||null,punishment:"Elimination",closed:false});
+      sysChat("📸 PHOTO CHALLENGE: "+txt.trim()+" — "+mins+" minutes, failure = elimination!");
+      S.photoPin=null; toast("Photo challenge broadcast"); renderRolePanel(true); break; }
+    case "photo-submit": {
+      const inp=$("photo-file"); if(!inp||!inp.files||!inp.files[0]){ toast("Choose a photo first"); break; }
+      toast("Compressing & sending…");
+      fileToDataUrl(inp.files[0],720,0.55).then(b64=>{
+        S.b.set(P()+"/photos/"+S.uid,{name:S.name,b64,ts:Date.now(),status:"pending"});
+        toast("Submitted — waiting for host review");
+      }).catch(()=>toast("Could not process photo"));
+      break; }
+    case "photo-approve": {
+      const id=el.dataset.id;
+      S.b.update(P()+"/photos/"+id,{status:"approved",b64:null});
+      sysChat((S.photos[id]&&S.photos[id].name||"Runner")+" passed the photo challenge ✅");
+      break; }
+    case "photo-reject": {
+      const id=el.dataset.id;
+      S.b.update(P()+"/photos/"+id,{status:"rejected",b64:null});
+      eliminate(id,"Photo rejected by host");
+      break; }
+    case "ft-activate": {
+      const mins=parseInt(($("ft-mins")||{}).value,10)||2;
+      S.b.set(P()+"/events/fullTrack",{until:Date.now()+mins*60000});
+      sysChat("🎯 Hunters have FULL location tracking for "+mins+" minute(s)!");
+      break; }
+    case "host-end":
+      confirmAsk("End the game now? Winner is decided automatically.",()=>{
+        const runners=Object.values(S.players).filter(p=>p.role==="runner");
+        finalize(runners.some(p=>p.status==="active")?"runners":"hunters","Host ended the game");
+      });
+      break;
+    case "scan-open": openScanner(); break;
+    case "scan-close": closeScanner(); break;
+    case "confirm-yes": $("modal-confirm").classList.add("hidden"); if(S.confirmCb){const cb=S.confirmCb;S.confirmCb=null;cb();} break;
+    case "confirm-no": $("modal-confirm").classList.add("hidden"); S.confirmCb=null; break;
+    case "result-home": clearSession(); location.reload(); break;
+    case "test-role": testSetRole(el.dataset.role); break;
+    case "test-tagged": eliminate(S.uid,"Simulated tag"); break;
+    case "test-tag-runner": {
+      const act=Object.keys(S.players).filter(id=>S.players[id].role==="runner"&&S.players[id].status==="active");
+      if(act.length) eliminate(act[Math.floor(Math.random()*act.length)],"Tagged (test)"); break; }
+    case "test-teleport": S.simOutside=!S.simOutside; toast(S.simOutside?"You will now teleport outside the boundary":"Back inside"); renderRolePanel(true); break;
+    case "test-arrive": S.b.set("games/TEST/players/test-me/arrived",true); toast("Marked as arrived at spawn"); break;
+    case "test-end": finalize("runners","Test end"); break;
+  }
+});
+document.addEventListener("input",e=>{
+  if(e.target.id==="setup-radius"){
+    $("setup-radius-lab").textContent=e.target.value;
+    if(S.meta&&S.meta.boundary&&S.meta.boundary.center)
+      S.b.update(P()+"/meta",{boundary:{center:S.meta.boundary.center,radius:parseInt(e.target.value,10)}});
+  }
+  if(e.target.id==="ev-radius"){ S.evRadius=parseInt(e.target.value,10);
+    $("ev-radius-lab").textContent=e.target.value;
+    if(evPreview) evPreview.setRadius(S.evRadius); }
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="chk-agree") $("btn-agree").disabled=!e.target.checked;
+  if(e.target.id==="photo-file"){
+    const f=e.target.files&&e.target.files[0];
+    if(f){ const pv=$("photo-preview");
+      fileToDataUrl(f,720,0.55).then(u=>{ pv.src=u; pv.classList.remove("hidden"); });
+      const sb=$("photo-submit"); if(sb) sb.disabled=false; }
+  }
+});
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&S.code){ writeLiveNow(); renderMapAll(); requestWake(); } });
+
+/* ------- boot ------- */
+window.addEventListener("load",async()=>{
+  initMap();
+  if(!CFG_OK){ const w=$("backend-warn"); w.textContent="⚠️ Multiplayer backend not configured — only Test Mode works. Paste your Firebase config into index.html."; w.classList.remove("hidden"); return; }
+  try{
+    const raw=localStorage.getItem("bmh_session"); if(!raw) return;
+    const s=JSON.parse(raw);
+    const b=await makeLiveBackend(); if(!b) return;
+    const meta=await b.get("games/"+s.code+"/meta");
+    if(!meta){ clearSession(); return; }
+    const me=await b.get("games/"+s.code+"/players/"+s.uid);
+    if(!me||meta.status==="ended"){ clearSession(); return; }
+    S.mode="live"; S.b=b; S.uid=b.uid; S.code=s.code; S.name=me.name||s.name; S.role=me.role; S.status=me.status;
+    subscribeAll();
+    $("screen-home").classList.add("hidden"); $("topbar").classList.remove("hidden");
+    if(meta.status==="lobby"){ if(S.role==="host") enterLobbyHost();
+      else{ $("lobby-code").textContent=s.code; $("screen-lobby").classList.remove("hidden"); startGeo(); } }
+    /* if running, the meta subscription calls enterGame() automatically */
+  }catch(e){ console.error(e); }
+});
+</script>
+</body>
+</html>
